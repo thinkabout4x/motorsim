@@ -1,0 +1,11 @@
+[package]
+name = "motor_control_sim"
+version = "0.2.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eframe = {git = "https://github.com/emilk/egui.git", branch = "master"}
+nalgebra = "0.32.2"
+tracing-subscriber = "0.3"
