@@ -1,26 +1,12 @@
 use eframe::egui::{self, InnerResponse, Ui};
 use egui::plot::{Line, Plot, PlotPoints};
-
-
-
-struct Pid{
-    kp: u32,
-    kd: u32,
-    ki: u32,
-}
+use crate::control::Pid;
 
 
 pub struct Motorsim{
     angle_pid: Pid,
     speed_pid: Pid,
     torque_pid: Pid,
-
-}
-
-impl Pid {
-    fn new(kp: u32, ki: u32, kd: u32) -> Self{
-        Self { kp, ki, kd}
-    }
 }
 
 impl Default for Motorsim {
