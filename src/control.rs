@@ -1,7 +1,10 @@
 mod motor;
 mod math;
 mod time_mod;
-use crate::control::motor::Motor;
+use eframe::egui::plot::PlotPoints;
+
+pub use crate::control::motor::Motor;
+use self::time_mod::Time;
 
 pub struct Pid{
     pub kp: u32,
@@ -10,7 +13,8 @@ pub struct Pid{
 }
 
 pub struct Contoller{
-    motor: Motor, 
+    motor: Motor,
+    time: Time
 
 }
 
@@ -22,7 +26,18 @@ impl Pid {
 
 impl Contoller{
     pub fn new(motor: Motor) -> Self{
-        Self {motor}
+        let time = Time::new();
+        Self {motor, time}
+    }
+    pub fn test(&mut self) -> PlotPoints{
+        let result: PlotPoints = (0..50).map(|i | {
+            
+            self.motor.update_state(0.1, 12.0);
+            [i as f64 +0.1, self.motor.get_velocity()]
+        }).collect::<PlotPoints>();
+
+        result
+
     }
 }
 

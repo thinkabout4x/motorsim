@@ -1,6 +1,8 @@
 use eframe::egui::{self, InnerResponse, Ui};
 use egui::plot::{Line, Plot, PlotPoints};
+use crate::control::Motor;
 use crate::control::Pid;
+use crate::control::Contoller;
 
 
 pub struct Motorsim{
@@ -27,9 +29,9 @@ impl eframe::App for Motorsim {
                 ui.label("Plots");
             });
             
-            Motorsim::plot(ui, "Angle");
-            Motorsim::plot(ui, "Speed");
-            Motorsim::plot(ui, "Torque");
+            //self.plot(ui, "Angle");
+            self.plot(ui, "Speed");
+            //self.plot(ui, "Torque");
 
 
         });
@@ -59,12 +61,14 @@ impl Motorsim {
         )
     }
 
-    fn plot(ui: &mut Ui, id: &str ) -> InnerResponse<()> {
+    fn plot(&mut self, ui: &mut Ui, id: &str ) -> InnerResponse<()> {
         ui.label(id);
-        let sin: PlotPoints = (0..1000).map(|i| {
-            let x = i as f64 * 0.01;
-            [x, x.sin()]
-        }).collect();
+        // let sin: PlotPoints = (0..1000).map(|i| {
+        //     let x = i as f64 * 0.01;
+        //     [x, x.sin()]
+        // }).collect();
+        let mut controller = Contoller::new(Motor::new(0.01, 0.1, 0.5, 1.0, 0.01, [0.0, 0.0]));
+        let sin = controller.test();
         let line = Line::new(sin);
         Plot::new(id).view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line))
     }
