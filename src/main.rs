@@ -1,13 +1,34 @@
 pub mod control;
 pub mod ui;
+use std::{thread, time::{Duration}, sync::{atomic::{ Ordering}}};
+use control::{Contoller, Motor};
 use crate::ui::Motorsim;
 
 
-fn main() -> Result<(), eframe::Error> {
-    // let motor = motor::Motor::new(0.01, 0.1, 0.5, 1.0, 0.01, [0.0, 0.0]);
-
-
+fn main() {
     let motorsim = Motorsim::default();
-    motorsim.run(1280, 720)
+    let pos_points = motorsim.get_pos_points();
+    let vel_points = motorsim.get_vel_points();
+    let acc_points = motorsim.get_acc_points();
+    let thread_end_flag = motorsim.get_endstate();
+
+    let mut controller = Contoller::new(Motor::new(0.01, 0.1, 0.5, 1.0, 0.01, [0.0, 0.0]));
+
+    let thread = thread::spawn(move || {
+
+        while !thread_end_flag.load(Ordering::Relaxed){
+            let vector = controller.get_pos_vec_acc();
+            pos_points.lock().unwrap().push(vector[0].into());
+            vel_points.lock().unwrap().push(vector[1].into());
+            acc_points.lock().unwrap().push(vector[2].into());
+
+            thread::sleep(Duration::from_millis(50));
+        }
+        println!("calc thread end")
+    });
+
+    Motorsim::run(motorsim, 1280, 720);
+
+    thread.join().unwrap();
     
 }

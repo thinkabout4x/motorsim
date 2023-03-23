@@ -43,3 +43,8 @@ impl Derivative{
         self.derivative
     }
 }
+
+pub fn rad_to_deg(rad: f64) -> f64{
+    let full_deg = rad*180.0/std::f64::consts::PI;
+    full_deg % 360.0
+}
