@@ -1,7 +1,6 @@
 mod motor;
 mod math;
 mod time_mod;
-use eframe::egui::plot::{PlotPoints};
 
 pub use crate::control::motor::Motor;
 use self::time_mod::Time;
@@ -14,8 +13,8 @@ pub struct Pid{
 
 pub struct Contoller{
     motor: Motor,
-    time: Time
-
+    time: Time,
+    duration: f64
 }
 
 impl Pid {
@@ -25,25 +24,24 @@ impl Pid {
 }
 
 impl Contoller{
-    pub fn new(motor: Motor) -> Self{
+    pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
-        Self {motor, time}
+        Self {motor, time, duration}
     }
 
-    pub fn get_pos_vec_acc(&mut self) -> Vec<[f64; 2]>{
+    pub fn get_pos_vec_acc_trq(&mut self) -> Option<Vec<[f64; 2]>>{
         self.time.update_state(); 
+        let time_from_start = self.time.get_time_from_start();
         self.motor.update_state(self.time.get_delta(), 12.0);
-        vec![[self.time.get_time_from_start(), self.motor.get_position()], [self.time.get_time_from_start(), self.motor.get_velocity()], [self.time.get_time_from_start(), self.motor.get_acceleration()]]
-    }
-    pub fn test(&mut self) -> PlotPoints{
-        let result: PlotPoints = (0..50).map(|i | {
-            
-            self.motor.update_state(0.1, 12.0);
-            [i as f64 +0.1, self.motor.get_velocity()]
-        }).collect::<PlotPoints>();
-
-        result
-
+        if time_from_start <= self.duration{
+            Some(vec![[time_from_start, self.motor.get_position()], 
+            [time_from_start, self.motor.get_velocity()], 
+            [time_from_start, self.motor.get_acceleration()], 
+            [time_from_start, self.motor.get_torque()]])
+        }
+        else {
+            None
+        }
     }
 }
 

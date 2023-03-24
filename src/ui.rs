@@ -15,6 +15,7 @@ pub struct Motorsim{
     pos_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
     vel_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
     acc_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
+    trq_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
     endstate: Arc<AtomicBool>
 }
 
@@ -27,6 +28,7 @@ impl Default for Motorsim {
             pos_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
             vel_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
             acc_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
+            trq_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
             endstate: Arc::new(AtomicBool::new(false))
         }
     }
@@ -43,6 +45,8 @@ impl eframe::App for Motorsim {
             Motorsim::plot(self.pos_points.lock().unwrap().to_vec(), ui, "Angle");
             Motorsim::plot(self.vel_points.lock().unwrap().to_vec(), ui, "Speed");
             Motorsim::plot(self.acc_points.lock().unwrap().to_vec(), ui, "Acceleration");
+            Motorsim::plot(self.trq_points.lock().unwrap().to_vec(), ui, "Torque");
+
         });
 
         egui::SidePanel::left("left").show(ctx, |ui|{
@@ -111,6 +115,9 @@ impl Motorsim {
     }
     pub fn get_acc_points(&self) -> Arc<Mutex<Vec<egui::plot::PlotPoint>>>{
         Arc::clone(&self.acc_points)
+    }
+    pub fn get_trq_points(&self) -> Arc<Mutex<Vec<egui::plot::PlotPoint>>>{
+        Arc::clone(&self.trq_points)
     }
 
     pub fn get_endstate(&self) -> Arc<AtomicBool>{
