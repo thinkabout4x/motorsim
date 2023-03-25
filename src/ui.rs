@@ -3,19 +3,16 @@ use std::sync::Mutex;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-use eframe::egui::plot::PlotPoint;
 use eframe::egui::{self, InnerResponse, Ui};
 use egui::plot::{Line, Plot, PlotPoints};
-use crate::control::Pid;
+use crate::control::Motor;
+use crate::control::{Pid, Controller};
 
 pub struct Motorsim{
     angle_pid: Pid,
     speed_pid: Pid,
     torque_pid: Pid,
-    pos_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
-    vel_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
-    acc_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
-    trq_points: Arc<Mutex<Vec<egui::plot::PlotPoint>>>,
+    controller: Arc<Mutex<Controller>>,
     endstate: Arc<AtomicBool>
 }
 
@@ -25,10 +22,7 @@ impl Default for Motorsim {
             angle_pid : Pid::new(0,0,0),
             speed_pid : Pid::new(0,0,0),
             torque_pid : Pid::new(0,0,0),
-            pos_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
-            vel_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
-            acc_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
-            trq_points: Arc::new(Mutex::new(vec![[0.0,0.0].into()])),
+            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.01, 0.1, 0.5, 1.0, 0.01, [0.0, 0.0]), 5.0))),
             endstate: Arc::new(AtomicBool::new(false))
         }
     }
@@ -41,12 +35,11 @@ impl eframe::App for Motorsim {
             ui.vertical_centered(|ui|{
                 ui.label("Plots");
             });
-            
-            Motorsim::plot(self.pos_points.lock().unwrap().to_vec(), ui, "Angle");
-            Motorsim::plot(self.vel_points.lock().unwrap().to_vec(), ui, "Speed");
-            Motorsim::plot(self.acc_points.lock().unwrap().to_vec(), ui, "Acceleration");
-            Motorsim::plot(self.trq_points.lock().unwrap().to_vec(), ui, "Torque");
 
+            Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_pos()), ui, "Angle");
+            Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_vel()), ui, "Speed");
+            Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_acc()), ui, "Acceleration");
+            Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_trq()), ui, "Torque");
         });
 
         egui::SidePanel::left("left").show(ctx, |ui|{
@@ -82,8 +75,8 @@ impl Motorsim {
 
     }
 
-    fn plot(points: Vec<PlotPoint>, ui: &mut Ui, id: &str ) -> InnerResponse<()> {
-        let line = Line::new(PlotPoints::Owned(points));
+    fn plot(points: PlotPoints, ui: &mut Ui, id: &str ) -> InnerResponse<()> {
+        let line = Line::new(points);
         Plot::new(id).view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line))
     }
 
@@ -107,17 +100,8 @@ impl Motorsim {
         })
     }
 
-    pub fn get_pos_points(&self) -> Arc<Mutex<Vec<egui::plot::PlotPoint>>>{
-        Arc::clone(&self.pos_points)
-    }
-    pub fn get_vel_points(&self) -> Arc<Mutex<Vec<egui::plot::PlotPoint>>>{
-        Arc::clone(&self.vel_points)
-    }
-    pub fn get_acc_points(&self) -> Arc<Mutex<Vec<egui::plot::PlotPoint>>>{
-        Arc::clone(&self.acc_points)
-    }
-    pub fn get_trq_points(&self) -> Arc<Mutex<Vec<egui::plot::PlotPoint>>>{
-        Arc::clone(&self.trq_points)
+    pub fn get_controller(&self) -> Arc<Mutex<Controller>>{
+        Arc::clone(&self.controller)
     }
 
     pub fn get_endstate(&self) -> Arc<AtomicBool>{
