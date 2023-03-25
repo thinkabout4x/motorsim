@@ -13,7 +13,8 @@ pub struct Motorsim{
     speed_pid: Pid,
     torque_pid: Pid,
     controller: Arc<Mutex<Controller>>,
-    endstate: Arc<AtomicBool>
+    endstate: Arc<AtomicBool>,
+    startstate: Arc<AtomicBool>
 }
 
 impl Default for Motorsim {
@@ -22,8 +23,9 @@ impl Default for Motorsim {
             angle_pid : Pid::new(0,0,0),
             speed_pid : Pid::new(0,0,0),
             torque_pid : Pid::new(0,0,0),
-            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.01, 0.1, 0.5, 1.0, 0.01, [0.0, 0.0]), 5.0))),
-            endstate: Arc::new(AtomicBool::new(false))
+            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.000065, 0.000024 , 0.00073, 0.7, 0.057, [0.0, 0.0]), 0.2))),
+            endstate: Arc::new(AtomicBool::new(false)),
+            startstate: Arc::new(AtomicBool::new(false))
         }
     }
 }
@@ -46,6 +48,14 @@ impl eframe::App for Motorsim {
             Motorsim::controller(ui, "Angle controller", &mut self.angle_pid);
             Motorsim::controller(ui, "Speed controller", &mut self.speed_pid);
             Motorsim::controller(ui, "Torque controller", &mut self.torque_pid);
+
+            if ui.add(egui::Button::new("Start")).clicked() {
+                self.controller.lock().unwrap().reset_time();
+                self.startstate.store(true, Ordering::Relaxed);
+            }
+            else {
+                {}
+            }
 
         });
 
@@ -106,6 +116,10 @@ impl Motorsim {
 
     pub fn get_endstate(&self) -> Arc<AtomicBool>{
         Arc::clone(&self.endstate)
+    }
+
+    pub fn get_startstate(&self) -> Arc<AtomicBool>{
+        Arc::clone(&self.startstate)
     }
 
 }

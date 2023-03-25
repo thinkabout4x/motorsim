@@ -1,6 +1,6 @@
 use nalgebra::{matrix,vector, Matrix2, Vector2};
 
-use super::math::{Integrator, Derivative, rad_to_deg};
+use super::math::{Integrator, Derivative, rad_to_deg, rads_to_rpm};
 
 pub struct Motor{
     a_matrix: Matrix2<f64>,
@@ -34,7 +34,7 @@ impl Motor {
         self.position.integrate(delta, self.ss_vector[0]); 
         self.velocity = self.ss_vector[0];
         self.acceleration.derivate(delta, self.ss_vector[0]);
-        self.torque = self.k*self.ss_vector[1]
+        self.torque = self.k*self.ss_vector[1];
     }
 
     pub fn get_position(&self) -> f64{
@@ -42,7 +42,7 @@ impl Motor {
     }
     
     pub fn get_velocity(&self) -> f64{
-        self.velocity
+        rads_to_rpm(self.velocity)
     }
 
     pub fn get_acceleration(&self) -> f64{

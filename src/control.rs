@@ -51,13 +51,17 @@ impl Controller{
     pub fn update_state(&mut self){
         self.time.update_state(); 
         let time_from_start = self.time.get_time_from_start();
-        self.motor.update_state(self.time.get_delta(), 12.0);
+        self.motor.update_state(self.time.get_delta(), 24.0);
         if time_from_start <= self.duration{
             self.pos.push([time_from_start, self.motor.get_position()]);
             self.vel.push([time_from_start, self.motor.get_velocity()]);
             self.acc.push([time_from_start, self.motor.get_acceleration()]);
             self.trq.push([time_from_start, self.motor.get_torque()]);
         }
+    }
+
+    pub fn reset_time(&mut self){
+        self.time = Time::new();
     }
 
     pub fn get_pos(&self) -> Vec<[f64; 2]>{
