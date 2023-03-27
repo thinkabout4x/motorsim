@@ -12,7 +12,7 @@ fn main() {
     let thread = thread::spawn(move || {
         while !thread_end_flag.load(Ordering::Relaxed){
             if thread_start_flag.load(Ordering::Relaxed){
-                controller.lock().unwrap().update_state();
+                controller.lock().unwrap().update_state(90.);
                 thread::sleep(Duration::from_millis(1));
             }
             else{

@@ -53,4 +53,12 @@ impl Motor {
         self.torque
     }
 
+    pub fn reset(&mut self){
+        self.ss_vector = vector![0., 0.];
+        self.position = Integrator::default();
+        self.velocity = self.ss_vector[0];
+        self.acceleration = Derivative::default();
+        self.torque = self.k*self.ss_vector[1];
+    }
+
 }
