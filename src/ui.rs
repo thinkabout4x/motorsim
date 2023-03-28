@@ -9,9 +9,6 @@ use crate::control::Motor;
 use crate::control::{Pid, Controller};
 
 pub struct Motorsim{
-    //angle_pid: Pid,
-    //speed_pid: Pid,
-    //torque_pid: Pid,
     controller: Arc<Mutex<Controller>>,
     endstate: Arc<AtomicBool>,
     startstate: Arc<AtomicBool>
@@ -20,10 +17,7 @@ pub struct Motorsim{
 impl Default for Motorsim {
     fn default() -> Self {
         Self {
-            //angle_pid : Pid::new(0.0,0.0,0.0),
-            //speed_pid : Pid::new(0.0,0.0,0.0),
-            //torque_pid : Pid::new(0.0,0.0,0.0),
-            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.000065, 0.000024 , 0.00073, 0.7, 0.057, [0.0, 0.0]), 0.2))),
+            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.000065, 0.000024 , 0.00073, 0.7, 0.057, [0.0, 0.0]), 0.3))),
             endstate: Arc::new(AtomicBool::new(false)),
             startstate: Arc::new(AtomicBool::new(false))
         }
@@ -46,8 +40,8 @@ impl eframe::App for Motorsim {
 
         egui::SidePanel::left("left").show(ctx, |ui|{
             Motorsim::controller(ui, "Angle controller", self.controller.lock().unwrap().get_pos_pid());
-            //Motorsim::controller(ui, "Speed controller", &mut self.speed_pid);
-            //Motorsim::controller(ui, "Torque controller", &mut self.torque_pid);
+            Motorsim::controller(ui, "Speed controller", self.controller.lock().unwrap().get_vel_pid());
+            Motorsim::controller(ui, "Torque controller", self.controller.lock().unwrap().get_trq_pid());
 
             if ui.add(egui::Button::new("Start")).clicked() {
                 self.controller.lock().unwrap().reset();
@@ -98,11 +92,11 @@ impl Motorsim {
         ui.group(|ui|{
             ui.horizontal(|ui| {
                 ui.label("Kp :");
-                ui.add(egui::DragValue::new(&mut pid.get_kp()).speed(0.05));
+                ui.add(egui::DragValue::new(pid.get_kp()).speed(0.05));
                 ui.label("Kd :");
-                ui.add(egui::DragValue::new(&mut pid.get_kd()).speed(0.05));
+                ui.add(egui::DragValue::new(pid.get_kd()).speed(0.05));
                 ui.label("Ki :");
-                ui.add(egui::DragValue::new(&mut pid.get_ki()).speed(0.05));
+                ui.add(egui::DragValue::new(pid.get_ki()).speed(0.05));
                 if ui.add(egui::Button::new("Calibrate")).clicked() {
                     
                 };

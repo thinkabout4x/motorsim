@@ -18,8 +18,10 @@ pub struct Controller{
     pos: Vec<[f64; 2]>,
     pos_pid: Pid,
     vel: Vec<[f64; 2]>,
+    vel_pid: Pid,
     acc: Vec<[f64; 2]>,
     trq: Vec<[f64; 2]>,
+    trq_pid: Pid,
     time: Time,
     duration: f64
 }
@@ -29,16 +31,21 @@ impl Pid {
         Self {kp, ki, kd, integral: Integrator::default(), derivative: Derivative::default()}
     }
 
-    pub fn get_kp(&self) -> f64{
-        self.kp
+    pub fn reset(&mut self){
+        self.integral = Integrator::default();
+        self.derivative = Derivative::default();
     }
 
-    pub fn get_kd(&self) -> f64{
-        self.kd
+    pub fn get_kp(&mut self) -> &mut f64{
+        &mut self.kp
     }
 
-    pub fn get_ki(&self) -> f64{
-        self.ki
+    pub fn get_kd(&mut self) ->&mut f64{
+        &mut self.kd
+    }
+
+    pub fn get_ki(&mut self) ->&mut f64{
+        &mut self.ki
     }
 
     pub fn generate_control(&mut self, input: f64, target: f64, delta: f64) -> f64{
@@ -52,30 +59,23 @@ impl Pid {
 impl Controller{
     pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
-        Self {motor, time, duration, pos: vec![],pos_pid: Pid::new(0.1,0.0,0.0), vel: vec![], acc: vec![], trq: vec![]}
+        Self {motor, time, duration,
+             pos: vec![],pos_pid: Pid::new(0.0,0.0,0.0),
+              vel: vec![], vel_pid: Pid::new(0.0,0.0,0.0),
+              acc: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0)}
     }
-
-    // pub fn get_pos_vec_acc_trq(&mut self) -> Option<Vec<[f64; 2]>>{
-    //     self.time.update_state(); 
-    //     let time_from_start = self.time.get_time_from_start();
-    //     self.motor.update_state(self.time.get_delta(), 12.0);
-    //     if time_from_start <= self.duration{
-    //         Some(vec![[time_from_start, self.motor.get_position()], 
-    //         [time_from_start, self.motor.get_velocity()], 
-    //         [time_from_start, self.motor.get_acceleration()], 
-    //         [time_from_start, self.motor.get_torque()]])
-    //     }
-    //     else {
-    //         None
-    //     }
-    // }
 
     pub fn update_state(&mut self, target:f64){
         self.time.update_state(); 
         let time_from_start = self.time.get_time_from_start();
         let delta = self.time.get_delta();
-       // self.motor.update_state(delta, 24.0);
-        self.motor.update_state(delta, self.pos_pid.generate_control(self.motor.get_position(), target, delta));
+        let mut input = self.pos_pid.generate_control(self.motor.get_position(), target, delta);
+
+        if input> 24.0{
+            input = 24.0;
+        } 
+        
+        self.motor.update_state(delta, input);
         if time_from_start <= self.duration{
             self.pos.push([time_from_start, self.motor.get_position()]);
             self.vel.push([time_from_start, self.motor.get_velocity()]);
@@ -86,7 +86,9 @@ impl Controller{
 
     pub fn reset(&mut self){
         self.time = Time::new();
-        self.pos_pid = Pid::new(0.1,0.0,0.0);
+        self.pos_pid.reset();
+        self.vel_pid.reset();
+        self.vel_pid.reset();
         self.motor.reset();
         self.pos = vec![];
         self.vel = vec![];
@@ -103,11 +105,17 @@ impl Controller{
     pub fn get_vel(&self) -> Vec<[f64; 2]>{
         self.vel.clone()
     }
+    pub fn get_vel_pid(&mut self) -> &mut Pid{
+        &mut self.vel_pid
+    }
     pub fn get_acc(&self) -> Vec<[f64; 2]>{
         self.acc.clone()
     }
     pub fn get_trq(&self) -> Vec<[f64; 2]>{
         self.trq.clone()
+    }
+    pub fn get_trq_pid(&mut self) -> &mut Pid{
+        &mut self.trq_pid
     }
 }
 
