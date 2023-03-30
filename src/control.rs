@@ -17,6 +17,7 @@ pub struct Controller{
     motor: Motor,
     pos: Vec<[f64; 2]>,
     pos_pid: Pid,
+    pos_target: f64,
     vel: Vec<[f64; 2]>,
     vel_pid: Pid,
     acc: Vec<[f64; 2]>,
@@ -60,16 +61,16 @@ impl Controller{
     pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
         Self {motor, time, duration,
-             pos: vec![],pos_pid: Pid::new(0.0,0.0,0.0),
+             pos: vec![],pos_pid: Pid::new(0.0,0.0,0.0), pos_target: 0.0,
               vel: vec![], vel_pid: Pid::new(0.0,0.0,0.0),
               acc: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0)}
     }
 
-    pub fn update_state(&mut self, target:f64){
+    pub fn update_state(&mut self){
         self.time.update_state(); 
         let time_from_start = self.time.get_time_from_start();
         let delta = self.time.get_delta();
-        let mut input = self.pos_pid.generate_control(self.motor.get_position(), target, delta);
+        let mut input = self.pos_pid.generate_control(self.motor.get_position(), self.pos_target, delta);
 
         if input> 24.0{
             input = 24.0;
@@ -101,6 +102,9 @@ impl Controller{
     }
     pub fn get_pos_pid(&mut self) -> &mut Pid{
         &mut self.pos_pid
+    }
+    pub fn get_pos_target(&mut self) -> &mut f64{
+        &mut self.pos_target
     }
     pub fn get_vel(&self) -> Vec<[f64; 2]>{
         self.vel.clone()

@@ -12,14 +12,11 @@ fn main() {
     let thread = thread::spawn(move || {
         while !thread_end_flag.load(Ordering::Relaxed){
             if thread_start_flag.load(Ordering::Relaxed){
-                controller.lock().unwrap().update_state(90.);
+                controller.lock().unwrap().update_state();
                 thread::sleep(Duration::from_millis(1));
             }
-            else{
-                {}
-            };
         }
-        println!("calc thread end");
+        println!("Controller thread end");
     });
 
     Motorsim::run(motorsim, 1920, 1080);

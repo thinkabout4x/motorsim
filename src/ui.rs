@@ -43,12 +43,11 @@ impl eframe::App for Motorsim {
             Motorsim::controller(ui, "Speed controller", self.controller.lock().unwrap().get_vel_pid());
             Motorsim::controller(ui, "Torque controller", self.controller.lock().unwrap().get_trq_pid());
 
+            ui.add(egui::Slider::new(self.controller.lock().unwrap().get_pos_target(), 0.0..=360.0).text("Pos target"));
+
             if ui.add(egui::Button::new("Start")).clicked() {
                 self.controller.lock().unwrap().reset();
                 self.startstate.store(true, Ordering::Relaxed);
-            }
-            else {
-                {}
             }
 
         });

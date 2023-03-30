@@ -11,7 +11,7 @@ pub struct Motor{
     velocity: f64,
     acceleration: Derivative,
     torque: f64,
-    k :f64
+    k: f64
 }
 
 impl Motor {
