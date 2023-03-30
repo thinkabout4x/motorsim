@@ -34,8 +34,8 @@ impl eframe::App for Motorsim {
 
             Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_pos()), ui, "Angle");
             Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_vel()), ui, "Speed");
-            Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_acc()), ui, "Acceleration");
             Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_trq()), ui, "Torque");
+            Motorsim::plot(PlotPoints::from(self.controller.lock().unwrap().get_voltage()), ui, "Voltage");
         });
 
         egui::SidePanel::left("left").show(ctx, |ui|{

@@ -20,7 +20,7 @@ pub struct Controller{
     pos_target: f64,
     vel: Vec<[f64; 2]>,
     vel_pid: Pid,
-    acc: Vec<[f64; 2]>,
+    voltage: Vec<[f64; 2]>,
     trq: Vec<[f64; 2]>,
     trq_pid: Pid,
     time: Time,
@@ -61,9 +61,9 @@ impl Controller{
     pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
         Self {motor, time, duration,
-             pos: vec![],pos_pid: Pid::new(0.0,0.0,0.0), pos_target: 0.0,
+             pos: vec![],pos_pid: Pid::new(0.5,10.0,0.003), pos_target: 0.0,
               vel: vec![], vel_pid: Pid::new(0.0,0.0,0.0),
-              acc: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0)}
+              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0)}
     }
 
     pub fn update_state(&mut self){
@@ -72,15 +72,14 @@ impl Controller{
         let delta = self.time.get_delta();
         let mut input = self.pos_pid.generate_control(self.motor.get_position(), self.pos_target, delta);
 
-        if input> 24.0{
+        if input.abs()> 24.0{
             input = 24.0;
         } 
-        
         self.motor.update_state(delta, input);
         if time_from_start <= self.duration{
             self.pos.push([time_from_start, self.motor.get_position()]);
             self.vel.push([time_from_start, self.motor.get_velocity()]);
-            self.acc.push([time_from_start, self.motor.get_acceleration()]);
+            self.voltage.push([time_from_start, input]);
             self.trq.push([time_from_start, self.motor.get_torque()]);
         }
     }
@@ -93,7 +92,7 @@ impl Controller{
         self.motor.reset();
         self.pos = vec![];
         self.vel = vec![];
-        self.acc = vec![];
+        self.voltage = vec![];
         self.trq = vec![];
     }
 
@@ -112,8 +111,8 @@ impl Controller{
     pub fn get_vel_pid(&mut self) -> &mut Pid{
         &mut self.vel_pid
     }
-    pub fn get_acc(&self) -> Vec<[f64; 2]>{
-        self.acc.clone()
+    pub fn get_voltage(&self) -> Vec<[f64; 2]>{
+        self.voltage.clone()
     }
     pub fn get_trq(&self) -> Vec<[f64; 2]>{
         self.trq.clone()
