@@ -18,11 +18,14 @@ pub struct Controller{
     pos: Vec<[f64; 2]>,
     pos_pid: Pid,
     pos_target: f64,
+    vltg_bound: f64,
     vel: Vec<[f64; 2]>,
     vel_pid: Pid,
+    vel_bound: f64,
     voltage: Vec<[f64; 2]>,
     trq: Vec<[f64; 2]>,
     trq_pid: Pid,
+    trq_bound: f64,
     time: Time,
     duration: f64
 }
@@ -61,9 +64,9 @@ impl Controller{
     pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
         Self {motor, time, duration,
-             pos: vec![],pos_pid: Pid::new(0.5,10.0,0.003), pos_target: 0.0,
-              vel: vec![], vel_pid: Pid::new(0.0,0.0,0.0),
-              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0)}
+             pos: vec![],pos_pid: Pid::new(0.5,10.0,0.003), pos_target: 0.0, vltg_bound: 24.0,
+              vel: vec![], vel_pid: Pid::new(0.0,0.0,0.0), vel_bound: 4000.0,
+              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0), trq_bound: 1.0}
     }
 
     pub fn update_state(&mut self){
@@ -72,9 +75,10 @@ impl Controller{
         let delta = self.time.get_delta();
         let mut input = self.pos_pid.generate_control(self.motor.get_position(), self.pos_target, delta);
 
-        if input.abs()> 24.0{
-            input = 24.0;
+        if input.abs()> self.vltg_bound{
+            input = self.vltg_bound;
         } 
+        
         self.motor.update_state(delta, input);
         if time_from_start <= self.duration{
             self.pos.push([time_from_start, self.motor.get_position()]);
@@ -96,6 +100,9 @@ impl Controller{
         self.trq = vec![];
     }
 
+    pub fn get_motor(&mut self) -> &mut Motor{
+        &mut self.motor
+    }
     pub fn get_pos(&self) -> Vec<[f64; 2]>{
         self.pos.clone()
     }
@@ -105,11 +112,17 @@ impl Controller{
     pub fn get_pos_target(&mut self) -> &mut f64{
         &mut self.pos_target
     }
+    pub fn get_vltg_bound(&mut self) -> &mut f64{
+        &mut self.vltg_bound
+    }
     pub fn get_vel(&self) -> Vec<[f64; 2]>{
         self.vel.clone()
     }
     pub fn get_vel_pid(&mut self) -> &mut Pid{
         &mut self.vel_pid
+    }
+    pub fn get_vel_bound(&mut self) -> &mut f64{
+        &mut self.vel_bound
     }
     pub fn get_voltage(&self) -> Vec<[f64; 2]>{
         self.voltage.clone()
@@ -119,6 +132,9 @@ impl Controller{
     }
     pub fn get_trq_pid(&mut self) -> &mut Pid{
         &mut self.trq_pid
+    }
+    pub fn get_trq_bound(&mut self) -> &mut f64{
+        &mut self.trq_bound
     }
 }
 

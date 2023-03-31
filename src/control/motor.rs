@@ -11,6 +11,10 @@ pub struct Motor{
     velocity: f64,
     acceleration: Derivative,
     torque: f64,
+    j: f64,
+    b: f64,
+    l: f64,
+    r: f64,
     k: f64
 }
 
@@ -24,7 +28,7 @@ impl Motor {
         let velocity = ss_vector[0];
         let acceleration = Derivative::default();
         let torque = k*ss_vector[1];
-        Self {a_matrix, b_vector, i_matrix, ss_vector, position, velocity, acceleration, torque, k}
+        Self {a_matrix, b_vector, i_matrix, ss_vector, position, velocity, acceleration, torque,j,b,l,r,k}
     }
 
     pub fn update_state(&mut self, delta: f64, voltage: f64){
@@ -53,7 +57,29 @@ impl Motor {
         self.torque
     }
 
+    pub fn get_j(&mut self) ->&mut f64{
+        &mut self.j
+    }
+
+    pub fn get_b(&mut self) ->&mut f64{
+        &mut self.b
+    }
+
+    pub fn get_k(&mut self) ->&mut f64{
+        &mut self.k
+    }
+
+    pub fn get_r(&mut self) ->&mut f64{
+        &mut self.r
+    }
+
+    pub fn get_l(&mut self) ->&mut f64{
+        &mut self.l
+    }
+
     pub fn reset(&mut self){
+        self.a_matrix = matrix![-self.b/self.j, self.k/self.j; -self.k/self.l, -self.r/self.l];
+        self.b_vector = vector![0.0, 1.0/self.l];
         self.ss_vector = vector![0., 0.];
         self.position = Integrator::default();
         self.velocity = self.ss_vector[0];
