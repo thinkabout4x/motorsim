@@ -6,19 +6,13 @@ use std::sync::atomic::Ordering;
 use eframe::egui::{self, InnerResponse, Ui};
 use egui::plot::{Line, Plot, PlotPoints};
 use crate::control::Motor;
-use crate::control::{Pid, Controller};
-
-#[derive(PartialEq)]
-enum Type {
-    Pos,
-    PosVelTrq,
-}
+use crate::control::Type;
+use crate::control::{Controller};
 
 pub struct Motorsim{
     controller: Arc<Mutex<Controller>>,
     endstate: Arc<AtomicBool>,
-    startstate: Arc<AtomicBool>,
-    control_type: Type
+    startstate: Arc<AtomicBool>
 }
 
 impl Default for Motorsim {
@@ -26,8 +20,7 @@ impl Default for Motorsim {
         Self {
             controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.000065, 0.000024 , 0.00073, 0.7, 0.057, [0.0, 0.0]), 0.3))),
             endstate: Arc::new(AtomicBool::new(false)),
-            startstate: Arc::new(AtomicBool::new(false)),
-            control_type: Type::Pos
+            startstate: Arc::new(AtomicBool::new(false))
         }
     }
 }
@@ -51,15 +44,73 @@ impl eframe::App for Motorsim {
                 ui.group(|ui|{
                     ui.label("Control type :");
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut self.control_type, Type::Pos, "Pos");
-                        ui.selectable_value(&mut self.control_type, Type::PosVelTrq, "PosVelTrq");
+                        ui.selectable_value(self.controller.lock().unwrap().get_option(), Type::Pos, "Pos");
+                        ui.selectable_value(self.controller.lock().unwrap().get_option(), Type::PosVelTrq, "PosVelTrq");
                     });
                 });
             });
-            
-            Motorsim::controller(ui, "Angle controller", self.controller.lock().unwrap().get_pos_pid());
-            Motorsim::controller(ui, "Speed controller", self.controller.lock().unwrap().get_vel_pid());
-            Motorsim::controller(ui, "Torque controller", self.controller.lock().unwrap().get_trq_pid());
+
+            ui.vertical_centered(|ui|{
+                ui.label("Angle controller");
+            });
+    
+            ui.group(|ui|{
+                ui.horizontal(|ui| {
+                    ui.label("Kp :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_pos_pid().get_kp()).speed(0.05));
+                    ui.label("Kd :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_pos_pid().get_kd()).speed(0.05));
+                    ui.label("Ki :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_pos_pid().get_ki()).speed(0.05));
+    
+                    if ui.add(egui::Button::new("Calibrate")).clicked() {
+                        self.controller.lock().unwrap().reset();
+                        self.startstate.store(true, Ordering::Relaxed);
+                    }
+                })
+            });
+
+            ui.vertical_centered(|ui|{
+                ui.label("Speed controller");
+            });
+    
+            ui.group(|ui|{
+                ui.horizontal(|ui| {
+                    ui.label("Kp :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_vel_pid().get_kp()).speed(0.05));
+                    ui.label("Kd :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_vel_pid().get_kd()).speed(0.05));
+                    ui.label("Ki :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_vel_pid().get_ki()).speed(0.05));
+    
+                    if ui.add(egui::Button::new("Calibrate")).clicked() {
+                        *(self.controller.lock().unwrap().get_option()) = Type::VelTrq;
+                        self.controller.lock().unwrap().reset();
+                        self.startstate.store(true, Ordering::Relaxed);
+                    }
+                })
+            });
+
+            ui.vertical_centered(|ui|{
+                ui.label("Torque controller");
+            });
+    
+            ui.group(|ui|{
+                ui.horizontal(|ui| {
+                    ui.label("Kp :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_trq_pid().get_kp()).speed(0.05));
+                    ui.label("Kd :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_trq_pid().get_kd()).speed(0.05));
+                    ui.label("Ki :");
+                    ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_trq_pid().get_ki()).speed(0.05));
+    
+                    if ui.add(egui::Button::new("Calibrate")).clicked() {
+                        *(self.controller.lock().unwrap().get_option()) = Type::Trq;
+                        self.controller.lock().unwrap().reset();
+                        self.startstate.store(true, Ordering::Relaxed);
+                    }
+                })
+            });
 
             ui.vertical_centered(|ui|{
                 ui.label("Motor parameters");
@@ -94,7 +145,7 @@ impl eframe::App for Motorsim {
             });
               
 
-            ui.add(egui::Slider::new(self.controller.lock().unwrap().get_pos_target(), 0.0..=360.0).text("Pos target"));
+            ui.add(egui::Slider::new(self.controller.lock().unwrap().get_target(), 0.0..=360.0).text("Pos target"));
 
             if ui.add(egui::Button::new("Start")).clicked() {
                 self.controller.lock().unwrap().reset();
@@ -132,26 +183,6 @@ impl Motorsim {
     fn plot(points: PlotPoints, ui: &mut Ui, id: &str ) -> InnerResponse<()> {
         let line = Line::new(points);
         Plot::new(id).view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line))
-    }
-
-    fn controller(ui: &mut Ui, label: &str, pid: &mut Pid) -> InnerResponse<()> {
-        ui.vertical_centered(|ui|{
-            ui.label(label);
-        });
-
-        ui.group(|ui|{
-            ui.horizontal(|ui| {
-                ui.label("Kp :");
-                ui.add(egui::DragValue::new(pid.get_kp()).speed(0.05));
-                ui.label("Kd :");
-                ui.add(egui::DragValue::new(pid.get_kd()).speed(0.05));
-                ui.label("Ki :");
-                ui.add(egui::DragValue::new(pid.get_ki()).speed(0.05));
-                if ui.add(egui::Button::new("Calibrate")).clicked() {
-                    
-                };
-            });
-        })
     }
 
     pub fn get_controller(&self) -> Arc<Mutex<Controller>>{

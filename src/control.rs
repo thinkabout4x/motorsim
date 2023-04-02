@@ -5,19 +5,38 @@ mod time_mod;
 pub use crate::control::motor::Motor;
 use self::{time_mod::Time, math::{Integrator, Derivative}};
 
+#[derive(PartialEq)]
+pub enum Type {
+    Pos,
+    PosVelTrq,
+    VelTrq,
+    Trq,
+}
+
+pub enum PidType {
+    Pos,
+    Vel,
+    Trq,
+}
+
+
 pub struct Pid{
     kp: f64,
     kd: f64,
     ki: f64,
     integral: Integrator,
-    derivative: Derivative
+    derivative: Derivative,
+    option: PidType
 }
+
 
 pub struct Controller{
     motor: Motor,
+    target: f64,
+    option: Type,
+    calibration: bool,
     pos: Vec<[f64; 2]>,
     pos_pid: Pid,
-    pos_target: f64,
     vltg_bound: f64,
     vel: Vec<[f64; 2]>,
     vel_pid: Pid,
@@ -31,8 +50,8 @@ pub struct Controller{
 }
 
 impl Pid {
-    pub fn new(kp: f64, ki: f64, kd: f64) -> Self{
-        Self {kp, ki, kd, integral: Integrator::default(), derivative: Derivative::default()}
+    pub fn new(kp: f64, ki: f64, kd: f64, option: PidType) -> Self{
+        Self {kp, ki, kd, integral: Integrator::default(), derivative: Derivative::default(), option}
     }
 
     pub fn reset(&mut self){
@@ -52,32 +71,79 @@ impl Pid {
         &mut self.ki
     }
 
-    pub fn generate_control(&mut self, input: f64, target: f64, delta: f64) -> f64{
+    pub fn get_option(&self) -> &PidType{
+        &self.option
+    }
+
+    pub fn generate_control(&mut self, input: f64, target: f64, delta: f64, bound: f64) -> f64{
         let error = target - input;
         self.derivative.derivate(delta, error);
         self.integral.integrate(delta, error);
-        self.kp*error+self.kd*self.derivative.get_state()+self.ki*self.integral.get_state()
+        let mut result = self.kp*error+self.kd*self.derivative.get_state()+self.ki*self.integral.get_state();
+
+        if result.abs() > bound{
+            if result< 0.0{
+                result = -bound;
+            }else{
+                result = bound;
+            }
+        } 
+        result
     }
 }
 
 impl Controller{
     pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
-        Self {motor, time, duration,
-             pos: vec![],pos_pid: Pid::new(0.5,10.0,0.003), pos_target: 0.0, vltg_bound: 24.0,
-              vel: vec![], vel_pid: Pid::new(0.0,0.0,0.0), vel_bound: 4000.0,
-              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.0,0.0,0.0), trq_bound: 1.0}
+        Self {motor, time, duration, option: Type::PosVelTrq, calibration: false,
+             pos: vec![],pos_pid: Pid::new(0.5,10.0,0.003, PidType::Pos), target: 0.0, vltg_bound: 24.0,
+              vel: vec![], vel_pid: Pid::new(0.001,0.0,0.0, PidType::Vel), vel_bound: 4000.0,
+              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.0,16000.0,0.0, PidType::Trq), trq_bound: 1.0}
+    }
+
+    pub fn generate_control(&mut self, delta: f64) -> f64{
+        let input = match self.option {
+            Type::Pos => {
+                let target = if self.calibration{
+                    180.0
+                }
+                else {
+                     self.target
+                };
+                self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.vltg_bound)
+            }
+            Type::PosVelTrq => {
+                let target = if self.calibration{
+                    180.0
+                }
+                else {
+                     self.target
+                };
+                let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.vel_bound);
+                let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.trq_bound);
+                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
+                vltg
+            }
+            Type::VelTrq => {
+                let target = self.vel_bound/2.;
+                let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.trq_bound);
+                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
+                vltg
+            }
+            Type::Trq => {
+                let target = self.trq_bound/2.;
+                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.vltg_bound);
+                vltg
+            }
+        };
+        input
     }
 
     pub fn update_state(&mut self){
         self.time.update_state(); 
         let time_from_start = self.time.get_time_from_start();
         let delta = self.time.get_delta();
-        let mut input = self.pos_pid.generate_control(self.motor.get_position(), self.pos_target, delta);
-
-        if input.abs()> self.vltg_bound{
-            input = self.vltg_bound;
-        } 
+        let input = self.generate_control(delta);
         
         self.motor.update_state(delta, input);
         if time_from_start <= self.duration{
@@ -92,7 +158,7 @@ impl Controller{
         self.time = Time::new();
         self.pos_pid.reset();
         self.vel_pid.reset();
-        self.vel_pid.reset();
+        self.trq_pid.reset();
         self.motor.reset();
         self.pos = vec![];
         self.vel = vec![];
@@ -109,8 +175,8 @@ impl Controller{
     pub fn get_pos_pid(&mut self) -> &mut Pid{
         &mut self.pos_pid
     }
-    pub fn get_pos_target(&mut self) -> &mut f64{
-        &mut self.pos_target
+    pub fn get_target(&mut self) -> &mut f64{
+        &mut self.target
     }
     pub fn get_vltg_bound(&mut self) -> &mut f64{
         &mut self.vltg_bound
@@ -135,6 +201,9 @@ impl Controller{
     }
     pub fn get_trq_bound(&mut self) -> &mut f64{
         &mut self.trq_bound
+    }
+    pub fn get_option(&mut self) -> &mut Type{
+        &mut self.option
     }
 }
 
