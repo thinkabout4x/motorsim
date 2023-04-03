@@ -92,7 +92,7 @@ impl eframe::App for Motorsim {
     
                     if ui.add(egui::Button::new("Calibrate")).clicked() {
                         self.controller.lock().unwrap().reset();
-                        *(self.controller.lock().unwrap().get_calib_option()) = Some(CalibType::VelTrq);                        self.controller.lock().unwrap().reset();
+                        *(self.controller.lock().unwrap().get_calib_option()) = Some(CalibType::VelTrq);                    
                         self.startstate.store(true, Ordering::Relaxed);
                     }
                 })
