@@ -5,8 +5,9 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, InnerResponse, Ui};
 use egui::plot::{Line, Plot, PlotPoints};
+use crate::control::CalibType;
+use crate::control::ControlType;
 use crate::control::Motor;
-use crate::control::Type;
 use crate::control::{Controller};
 
 pub struct Motorsim{
@@ -18,7 +19,7 @@ pub struct Motorsim{
 impl Default for Motorsim {
     fn default() -> Self {
         Self {
-            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.000065, 0.000024 , 0.00073, 0.7, 0.057, [0.0, 0.0]), 0.3))),
+            controller: Arc::new(Mutex::new(Controller::new(Motor::new(0.00065, 0.000024 , 0.00073, 0.7, 0.057, [0.0, 0.0]), 1.0))),
             endstate: Arc::new(AtomicBool::new(false)),
             startstate: Arc::new(AtomicBool::new(false))
         }
@@ -44,8 +45,8 @@ impl eframe::App for Motorsim {
                 ui.group(|ui|{
                     ui.label("Control type :");
                     ui.horizontal(|ui| {
-                        ui.selectable_value(self.controller.lock().unwrap().get_option(), Type::Pos, "Pos");
-                        ui.selectable_value(self.controller.lock().unwrap().get_option(), Type::PosVelTrq, "PosVelTrq");
+                        ui.selectable_value(self.controller.lock().unwrap().get_control_option(), ControlType::Pos, "Pos");
+                        ui.selectable_value(self.controller.lock().unwrap().get_control_option(), ControlType::PosVelTrq, "PosVelTrq");
                     });
                 });
             });
@@ -64,6 +65,12 @@ impl eframe::App for Motorsim {
                     ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_pos_pid().get_ki()).speed(0.05));
     
                     if ui.add(egui::Button::new("Calibrate")).clicked() {
+                        if *(self.controller.lock().unwrap().get_control_option()) == ControlType::Pos{
+                            *(self.controller.lock().unwrap().get_calib_option()) = Some(CalibType::Pos);                   
+                        }
+                        else{
+                            *(self.controller.lock().unwrap().get_calib_option()) = Some(CalibType::PosVelTrq);
+                        }
                         self.controller.lock().unwrap().reset();
                         self.startstate.store(true, Ordering::Relaxed);
                     }
@@ -84,8 +91,8 @@ impl eframe::App for Motorsim {
                     ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_vel_pid().get_ki()).speed(0.05));
     
                     if ui.add(egui::Button::new("Calibrate")).clicked() {
-                        *(self.controller.lock().unwrap().get_option()) = Type::VelTrq;
                         self.controller.lock().unwrap().reset();
+                        *(self.controller.lock().unwrap().get_calib_option()) = Some(CalibType::VelTrq);                        self.controller.lock().unwrap().reset();
                         self.startstate.store(true, Ordering::Relaxed);
                     }
                 })
@@ -105,8 +112,8 @@ impl eframe::App for Motorsim {
                     ui.add(egui::DragValue::new(self.controller.lock().unwrap().get_trq_pid().get_ki()).speed(0.05));
     
                     if ui.add(egui::Button::new("Calibrate")).clicked() {
-                        *(self.controller.lock().unwrap().get_option()) = Type::Trq;
                         self.controller.lock().unwrap().reset();
+                        *(self.controller.lock().unwrap().get_calib_option()) = Some(CalibType::Trq);
                         self.startstate.store(true, Ordering::Relaxed);
                     }
                 })
@@ -149,6 +156,7 @@ impl eframe::App for Motorsim {
 
             if ui.add(egui::Button::new("Start")).clicked() {
                 self.controller.lock().unwrap().reset();
+                *(self.controller.lock().unwrap().get_calib_option()) = None;
                 self.startstate.store(true, Ordering::Relaxed);
             }
 

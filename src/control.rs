@@ -5,12 +5,17 @@ mod time_mod;
 pub use crate::control::motor::Motor;
 use self::{time_mod::Time, math::{Integrator, Derivative}};
 
-#[derive(PartialEq)]
-pub enum Type {
+
+pub enum CalibType {
     Pos,
     PosVelTrq,
     VelTrq,
     Trq,
+}
+#[derive(PartialEq)]
+pub enum ControlType {
+    Pos,
+    PosVelTrq,
 }
 
 pub enum PidType {
@@ -33,8 +38,8 @@ pub struct Pid{
 pub struct Controller{
     motor: Motor,
     target: f64,
-    option: Type,
-    calibration: bool,
+    calib_option: Option<CalibType>,
+    control_option: ControlType,
     pos: Vec<[f64; 2]>,
     pos_pid: Pid,
     vltg_bound: f64,
@@ -95,45 +100,52 @@ impl Pid {
 impl Controller{
     pub fn new(motor: Motor, duration: f64) -> Self{
         let time = Time::new();
-        Self {motor, time, duration, option: Type::PosVelTrq, calibration: false,
+        Self {motor, time, duration, calib_option: None, control_option: ControlType::PosVelTrq,
              pos: vec![],pos_pid: Pid::new(0.5,10.0,0.003, PidType::Pos), target: 0.0, vltg_bound: 24.0,
               vel: vec![], vel_pid: Pid::new(0.001,0.0,0.0, PidType::Vel), vel_bound: 4000.0,
-              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.0,16000.0,0.0, PidType::Trq), trq_bound: 1.0}
+              voltage: vec![], trq: vec![], trq_pid: Pid::new(0.1,5000.0,0.0, PidType::Trq), trq_bound: 1.0}
     }
 
     pub fn generate_control(&mut self, delta: f64) -> f64{
-        let input = match self.option {
-            Type::Pos => {
-                let target = if self.calibration{
-                    180.0
+        let input = match &self.calib_option{
+            Some(t) =>{
+                match t{
+                    CalibType::Pos => {
+                        let target = 180.0;
+                        self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.vltg_bound)
+                    }
+                    CalibType::PosVelTrq => {
+                        let target = 180.0;
+                        let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.vel_bound);
+                        let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.trq_bound);
+                        let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
+                        vltg
+                    }
+                    CalibType::VelTrq => {
+                        let target = self.vel_bound/2.;
+                        let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.trq_bound);
+                        let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
+                        vltg
+                    }
+                    CalibType::Trq => {
+                        let target = self.trq_bound/2.;
+                        let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.vltg_bound);
+                        vltg
+                    }
                 }
-                else {
-                     self.target
-                };
-                self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.vltg_bound)
             }
-            Type::PosVelTrq => {
-                let target = if self.calibration{
-                    180.0
+            None => {
+                match self.control_option{
+                    ControlType::Pos => {
+                        self.pos_pid.generate_control(self.motor.get_position(), self.target, delta, self.vltg_bound)
+                    }
+                    ControlType::PosVelTrq => {
+                        let vel = self.pos_pid.generate_control(self.motor.get_position(), self.target, delta, self.vel_bound);
+                        let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.trq_bound);
+                        let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
+                        vltg
+                    }
                 }
-                else {
-                     self.target
-                };
-                let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.vel_bound);
-                let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.trq_bound);
-                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
-                vltg
-            }
-            Type::VelTrq => {
-                let target = self.vel_bound/2.;
-                let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.trq_bound);
-                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.vltg_bound);
-                vltg
-            }
-            Type::Trq => {
-                let target = self.trq_bound/2.;
-                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.vltg_bound);
-                vltg
             }
         };
         input
@@ -202,8 +214,11 @@ impl Controller{
     pub fn get_trq_bound(&mut self) -> &mut f64{
         &mut self.trq_bound
     }
-    pub fn get_option(&mut self) -> &mut Type{
-        &mut self.option
+    pub fn get_control_option(&mut self) -> &mut ControlType{
+        &mut self.control_option
+    }
+    pub fn get_calib_option(&mut self) -> &mut Option<CalibType>{
+        &mut self.calib_option
     }
 }
 
