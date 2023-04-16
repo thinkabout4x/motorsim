@@ -1,6 +1,6 @@
 pub struct Integrator {
+    prev_state: f64,
     integral: f64,
-
 }
 
 pub struct Derivative {
@@ -11,6 +11,7 @@ pub struct Derivative {
 impl Default for Integrator{
     fn default() -> Self{
         Self{
+            prev_state: 0.0,
             integral: 0.0
         }
     }
@@ -27,7 +28,8 @@ impl Default for Derivative{
 
 impl Integrator{
     pub fn integrate(&mut self, delta: f64, state: f64){
-        self.integral += delta*state;
+        self.integral += delta*(state+self.prev_state)/2.0;
+        self.prev_state = state;
     }
     pub fn get_state(&self) -> f64{
         self.integral
