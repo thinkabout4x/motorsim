@@ -304,45 +304,6 @@ impl Controller{
                 }
             }
         };
-
-
-
-        // let input = if self.pos_pid.config.need_calib{
-        //     match self.config.control_option{
-        //         ControlType::Pos => {
-        //             let target = 180.0;
-        //             self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vltg_bound)
-        //         }
-        //         ControlType::PosVelTrq => {
-        //             let target = 180.0;
-        //             let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vel_bound);
-        //             let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
-        //             let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
-        //             vltg
-        //         } 
-        // } 
-        // } else if self.vel_pid.config.need_calib {
-        //         let target = self.config.vel_bound/2.;
-        //         let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.config.trq_bound);
-        //         let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
-        //         vltg
-        // } else if self.trq_pid.config.need_calib {
-        //         let target = self.config.trq_bound/2.;
-        //         let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.config.vltg_bound);
-        //         vltg
-        // } else {
-        //         match self.config.control_option{
-        //             ControlType::Pos => {
-        //                 self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vltg_bound)
-        //             }
-        //             ControlType::PosVelTrq => {
-        //                 let vel = self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vel_bound);
-        //                 let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
-        //                 let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
-        //                 vltg
-        //             }
-        //     }
-        // };
         input
     }
 
@@ -363,7 +324,6 @@ impl Controller{
             points.voltage.push([time_from_start, input]);
             points.trq.push([time_from_start, self.motor.get_torque()]);
             thread::sleep(Duration::from_millis(1));
-
         }
     }
 }
