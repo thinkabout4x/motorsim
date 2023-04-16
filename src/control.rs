@@ -14,7 +14,7 @@ pub enum ControlType {
 }
 
 
-#[derive(Clone,Copy)]
+#[derive(Clone,Copy, PartialEq)]
 pub enum TypePid {
     Pos,
     Vel,
@@ -33,8 +33,7 @@ pub struct ConfigPid{
     kp: f64,
     ki: f64,
     kd: f64,
-    option: TypePid,
-    need_calib: bool
+    option: TypePid
 }
 
 #[derive(Copy, Clone)]
@@ -82,9 +81,9 @@ impl Default for ConfigController{
 
 impl Default for Config{
     fn default() -> Self {
-        Self{motor: ConfigMotor::default(), pid_conf: [ConfigPid::new(40.0, 1.0,1.5, TypePid::Pos, false),
-            ConfigPid::new(0.001, 0.0,0.0, TypePid::Vel, false),
-            ConfigPid::new(8.0, 5000.0,0.0, TypePid::Trq, false)],
+        Self{motor: ConfigMotor::default(), pid_conf: [ConfigPid::new(40.0, 1.0,1.5, TypePid::Pos),
+            ConfigPid::new(0.001, 0.0,0.0, TypePid::Vel),
+            ConfigPid::new(8.0, 5000.0,0.0, TypePid::Trq)],
             controller: ConfigController::default()}
     }
 }
@@ -126,8 +125,8 @@ impl PlotPnts{
 }
 
 impl ConfigPid{
-    pub fn new(kp: f64, ki: f64, kd: f64, option: TypePid, need_calib: bool) -> Self{
-        Self{ kp, ki, kd, option, need_calib}
+    pub fn new(kp: f64, ki: f64, kd: f64, option: TypePid) -> Self{
+        Self{ kp, ki, kd, option}
     }
     pub fn get_kp(&mut self) -> &mut f64{
         &mut self.kp
@@ -143,14 +142,6 @@ impl ConfigPid{
 
     pub fn get_option(&self) ->TypePid{
         self.option
-    }
-
-    pub fn get_need_calib(&mut self) ->&mut bool{
-        &mut self.need_calib
-    }
-
-    pub fn get_need_calib_imut(&self) ->&bool{
-        &self.need_calib
     }
 }
 
@@ -185,6 +176,10 @@ impl ConfigController {
 
     pub fn get_calib_option(&mut self) -> &mut Option<TypePid>{
         &mut self.calib_option
+    }
+
+    pub fn get_calib_option_imut(&self) -> &Option<TypePid>{
+        &self.calib_option
     }
 
     pub fn get_control_option(&mut self) -> &mut ControlType{
@@ -264,30 +259,38 @@ impl Controller{
     }
 
     pub fn generate_control(&mut self, delta: f64) -> f64{
-        let input = if self.pos_pid.config.need_calib{
-            match self.config.control_option{
-                ControlType::Pos => {
-                    let target = 180.0;
-                    self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vltg_bound)
+        let input = match self.config.calib_option{
+            Some(pid) =>{
+                match pid{
+                    TypePid::Pos =>{
+                        match self.config.control_option{
+                            ControlType::Pos => {
+                                let target = 180.0;
+                                self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vltg_bound)
+                            }
+                            ControlType::PosVelTrq => {
+                                let target = 180.0;
+                                let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vel_bound);
+                                let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
+                                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
+                                vltg
+                            } 
+                        }
+                    }
+                    TypePid::Vel =>{
+                        let target = self.config.vel_bound/2.;
+                        let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.config.trq_bound);
+                        let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
+                        vltg
+                    }
+                    TypePid::Trq =>{
+                        let target = self.config.trq_bound/2.;
+                        let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.config.vltg_bound);
+                        vltg
+                    }
                 }
-                ControlType::PosVelTrq => {
-                    let target = 180.0;
-                    let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vel_bound);
-                    let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
-                    let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
-                    vltg
-                } 
-        } 
-        } else if self.vel_pid.config.need_calib {
-                let target = self.config.vel_bound/2.;
-                let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.config.trq_bound);
-                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
-                vltg
-        } else if self.trq_pid.config.need_calib {
-                let target = self.config.trq_bound/2.;
-                let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.config.vltg_bound);
-                vltg
-        } else {
+            }
+            None => {
                 match self.config.control_option{
                     ControlType::Pos => {
                         self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vltg_bound)
@@ -298,8 +301,48 @@ impl Controller{
                         let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
                         vltg
                     }
+                }
             }
         };
+
+
+
+        // let input = if self.pos_pid.config.need_calib{
+        //     match self.config.control_option{
+        //         ControlType::Pos => {
+        //             let target = 180.0;
+        //             self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vltg_bound)
+        //         }
+        //         ControlType::PosVelTrq => {
+        //             let target = 180.0;
+        //             let vel = self.pos_pid.generate_control(self.motor.get_position(), target, delta, self.config.vel_bound);
+        //             let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
+        //             let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
+        //             vltg
+        //         } 
+        // } 
+        // } else if self.vel_pid.config.need_calib {
+        //         let target = self.config.vel_bound/2.;
+        //         let trq = self.vel_pid.generate_control(self.motor.get_velocity(), target, delta, self.config.trq_bound);
+        //         let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
+        //         vltg
+        // } else if self.trq_pid.config.need_calib {
+        //         let target = self.config.trq_bound/2.;
+        //         let vltg = self.trq_pid.generate_control(self.motor.get_torque(), target, delta, self.config.vltg_bound);
+        //         vltg
+        // } else {
+        //         match self.config.control_option{
+        //             ControlType::Pos => {
+        //                 self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vltg_bound)
+        //             }
+        //             ControlType::PosVelTrq => {
+        //                 let vel = self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vel_bound);
+        //                 let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
+        //                 let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
+        //                 vltg
+        //             }
+        //     }
+        // };
         input
     }
 
