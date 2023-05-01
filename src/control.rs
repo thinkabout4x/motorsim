@@ -38,13 +38,14 @@ pub struct ConfigPid{
 
 #[derive(Copy, Clone)]
 pub struct ConfigController{
-    target: f64,
     vltg_bound: f64,
     vel_bound: f64,
     trq_bound: f64,
     duration: f64,
     calib_option: Option<TypePid>,
     control_option: ControlType,
+    start_flag: bool,
+    end_flag: bool
 }
 
 #[derive(Copy, Clone)]
@@ -69,12 +70,13 @@ pub struct Controller{
     trq_pid: Pid,
     time: Time,
     config: ConfigController,
-    plotpoints: Arc<Mutex<PlotPnts>>
+    plotpoints: Arc<Mutex<PlotPnts>>,
+    target: Arc<Mutex<f64>>
 }
 
 impl Default for ConfigController{
     fn default() -> Self {
-        Self{target: 180., vltg_bound: 24., vel_bound: 4000.,trq_bound: 1., duration: 1.0, calib_option: None, control_option: ControlType::PosVelTrq }
+        Self{vltg_bound: 24., vel_bound: 4000.,trq_bound: 1., duration: 1.0, calib_option: None, control_option: ControlType::PosVelTrq, start_flag: false, end_flag: false }
     }
 }
 
@@ -101,19 +103,19 @@ impl Iterator for ConfigPid{
 }
 
 impl PlotPnts{
-    pub fn get_pos(&self) -> Vec<[f64; 2]>{
+    pub fn clone_pos(&self) -> Vec<[f64; 2]>{
         self.pos.clone()
     }
 
-    pub fn get_vel(&self) -> Vec<[f64; 2]>{
+    pub fn clone_vel(&self) -> Vec<[f64; 2]>{
         self.vel.clone()
     }
 
-    pub fn get_trq(&self) -> Vec<[f64; 2]>{
+    pub fn clone_trq(&self) -> Vec<[f64; 2]>{
         self.trq.clone()
     }
 
-    pub fn get_voltage(&self) -> Vec<[f64; 2]>{
+    pub fn clone_voltage(&self) -> Vec<[f64; 2]>{
         self.voltage.clone()
     }
     pub fn reset(&mut self){
@@ -128,15 +130,15 @@ impl ConfigPid{
     pub fn new(kp: f64, ki: f64, kd: f64, option: TypePid) -> Self{
         Self{ kp, ki, kd, option}
     }
-    pub fn get_kp(&mut self) -> &mut f64{
+    pub fn set_kp(&mut self) -> &mut f64{
         &mut self.kp
     }
 
-    pub fn get_kd(&mut self) ->&mut f64{
+    pub fn set_kd(&mut self) ->&mut f64{
         &mut self.kd
     }
 
-    pub fn get_ki(&mut self) ->&mut f64{
+    pub fn set_ki(&mut self) ->&mut f64{
         &mut self.ki
     }
 
@@ -146,43 +148,55 @@ impl ConfigPid{
 }
 
 impl ConfigController {
-    pub fn get_vltg_bound(&mut self) -> &mut f64{
+    pub fn set_vltg_bound(&mut self) -> &mut f64{
         &mut self.vltg_bound
     }
 
-    pub fn get_trq_bound(&mut self) -> &mut f64{
+    pub fn set_trq_bound(&mut self) -> &mut f64{
         &mut self.trq_bound
     }
 
-    pub fn get_trq_bound_imut(&self) -> &f64{
+    pub fn get_trq_bound(&self) -> &f64{
         &self.trq_bound
     }
 
-    pub fn get_vel_bound(&mut self) -> &mut f64{
+    pub fn set_vel_bound(&mut self) -> &mut f64{
         &mut self.vel_bound
     }
 
-    pub fn get_vel_bound_imut(&self) -> &f64{
+    pub fn get_vel_bound(&self) -> &f64{
         &self.vel_bound
     }
 
-    pub fn get_target(&mut self) -> &mut f64{
-        &mut self.target
+    pub fn get_start_flag(&self) -> &bool{
+        &self.start_flag
     }
 
-    pub fn get_duration(self) -> f64{
+    pub fn set_start_flag(&mut self) -> &mut bool{
+        &mut self.start_flag
+    }
+
+    pub fn get_end_flag(&self) -> &bool{
+        &self.end_flag
+    }
+
+    pub fn set_end_flag(&mut self) -> &mut bool{
+        &mut self.end_flag
+    }
+
+    pub fn get_duration(&self) -> f64{
         self.duration
     }
 
-    pub fn get_calib_option(&mut self) -> &mut Option<TypePid>{
+    pub fn set_calib_option(&mut self) -> &mut Option<TypePid>{
         &mut self.calib_option
     }
 
-    pub fn get_calib_option_imut(&self) -> &Option<TypePid>{
+    pub fn get_calib_option(&self) -> &Option<TypePid>{
         &self.calib_option
     }
 
-    pub fn get_control_option(&mut self) -> &mut ControlType{
+    pub fn set_control_option(&mut self) -> &mut ControlType{
         &mut self.control_option
    }
     
@@ -218,31 +232,31 @@ impl Pid {
 
 impl Config{
 
-    pub fn get_pid_conf(&mut self) -> &mut [ConfigPid; 3]{
+    pub fn set_pid_conf(&mut self) -> &mut [ConfigPid; 3]{
         &mut self.pid_conf
     }
 
-    pub fn get_pid_conf_imut(&self) -> &[ConfigPid; 3]{
+    pub fn get_pid_conf(&self) -> &[ConfigPid; 3]{
         &self.pid_conf
     }
 
-    pub fn get_controller_conf(&mut self) -> &mut ConfigController{
+    pub fn set_controller_conf(&mut self) -> &mut ConfigController{
         &mut self.controller
     }
 
-    pub fn get_controller_conf_imut(&self) -> &ConfigController{
+    pub fn get_controller_conf(&self) -> &ConfigController{
         &self.controller
     }
 
-    pub fn get_motor_conf(&mut self) -> &mut ConfigMotor{
+    pub fn set_motor_conf(&mut self) -> &mut ConfigMotor{
         &mut self.motor
     }
 }
 
 impl Controller{
-    pub fn new(config: Config, plotpoints: Arc<Mutex<PlotPnts>>) -> Self{
+    pub fn new(config: Config, plotpoints: Arc<Mutex<PlotPnts>>, target: Arc<Mutex<f64>>) -> Self{
         let time = Time::new();
-        Self {motor: Motor::new(config.motor), time,
+        Self {motor: Motor::new(config.motor), time, target,
              pos_pid: Pid::new(config.pid_conf[0]),
              vel_pid: Pid::new(config.pid_conf[1]),
              trq_pid: Pid::new(config.pid_conf[2]), config: config.controller, plotpoints}
@@ -293,10 +307,10 @@ impl Controller{
             None => {
                 match self.config.control_option{
                     ControlType::Pos => {
-                        self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vltg_bound)
+                        self.pos_pid.generate_control(self.motor.get_position(), *(self.target.lock().unwrap()), delta, self.config.vltg_bound)
                     }
                     ControlType::PosVelTrq => {
-                        let vel = self.pos_pid.generate_control(self.motor.get_position(), self.config.target, delta, self.config.vel_bound);
+                        let vel = self.pos_pid.generate_control(self.motor.get_position(), *(self.target.lock().unwrap()), delta, self.config.vel_bound);
                         let trq = self.vel_pid.generate_control(self.motor.get_velocity(), vel, delta, self.config.trq_bound);
                         let vltg = self.trq_pid.generate_control(self.motor.get_torque(), trq, delta, self.config.vltg_bound);
                         vltg
@@ -305,6 +319,8 @@ impl Controller{
             }
         };
         input
+
+
     }
 
     pub fn calculate_points(&mut self){
@@ -312,7 +328,7 @@ impl Controller{
         self.time.update_state(); 
         let mut time_from_start = self.time.get_time_from_start();
         
-        while time_from_start <= self.config.duration{
+        while Controller::check_point_add(self.config.calib_option, self.config.duration, time_from_start){
             self.time.update_state();
             time_from_start = self.time.get_time_from_start();
             let delta = self.time.get_delta();
@@ -325,6 +341,41 @@ impl Controller{
             points.trq.push([time_from_start, self.motor.get_torque()]);
             thread::sleep(Duration::from_millis(1));
         }
+    }
+
+    pub fn calculate_point(&mut self){
+        self.time.update_state();
+        let time_from_start = self.time.get_time_from_start();
+        
+        if Controller::check_point_add(self.config.calib_option, self.config.duration, time_from_start){
+            let delta = self.time.get_delta();
+            let input = self.generate_control(delta);
+            self.motor.update_state(delta, input);
+            let mut points = self.plotpoints.lock().unwrap();
+            points.pos.push([time_from_start, self.motor.get_position()]);
+            points.vel.push([time_from_start, self.motor.get_velocity()]);
+            points.voltage.push([time_from_start, input]);
+            points.trq.push([time_from_start, self.motor.get_torque()]);
+        }
+    }
+
+    fn check_point_add(calib_option: Option<TypePid>, duration: f64, time_from_start: f64) -> bool{
+        match calib_option {
+            Some(_) =>{
+                if time_from_start <= duration{
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            None => {
+                return true;
+            }
+        }
+    }
+
+    pub fn get_controller_conf(&self) -> &ConfigController{
+        &self.config
     }
 }
 

@@ -1,6 +1,6 @@
 pub mod control;
 pub mod ui;
-use std::{thread, time::{Duration}, sync::{atomic::{ Ordering}, mpsc::{self, Sender, Receiver}}};
+use std::{thread, time::{Duration}, sync::{mpsc::{self, Sender, Receiver}}};
 use control::{Controller, Config};
 
 use crate::ui::Motorsim;
@@ -9,25 +9,27 @@ fn main() {
     let (tx, rx): (Sender<Config>, Receiver<Config>) = mpsc::channel();
 
     let motorsim = Motorsim::new(tx.clone());
-    let thread_end_flag = motorsim.get_endstate();
-    let thread_start_flag = motorsim.get_startstate();
     let plotpoints = motorsim.get_plotpoints();
-
-    
+    let target = motorsim.get_target();
 
     let thread = thread::spawn(move || {
-        let mut controller = Controller::new(rx.recv().unwrap(), plotpoints);
+        let mut controller = Controller::new(rx.recv().unwrap(), plotpoints, target);
 
-        while !thread_end_flag.load(Ordering::Relaxed){
-            if thread_start_flag.load(Ordering::Relaxed){
-                match rx.try_recv(){
-                    Ok(config) => {
-                        controller.reset(config);
-                        controller.calculate_points();
-                    }
-                    Err(_) => {}
+        loop{
+            match rx.try_recv(){
+                Ok(config) => {
+                    controller.reset(config);
                 }
-                thread::sleep(Duration::from_millis(1));
+                Err(_) => {}
+            }
+
+            if !controller.get_controller_conf().get_end_flag(){
+                if *(controller.get_controller_conf().get_start_flag()){
+                    controller.calculate_point();
+                    thread::sleep(Duration::from_millis(1));
+                }
+            } else {
+                break
             }
         }
         println!("Controller thread end");

@@ -1,7 +1,5 @@
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use std::sync::mpsc::Sender;
 
 use eframe::egui::{self,Ui};
@@ -15,9 +13,8 @@ use crate::control::motor::ConfigMotor;
 
 pub struct Motorsim{
     config: Config,
+    target: Arc<Mutex<f64>>,
     plotpoints: Arc<Mutex<PlotPnts>>,
-    endstate: Arc<AtomicBool>,
-    startstate: Arc<AtomicBool>, 
     transmitter: Sender<Config>
 }
 
@@ -38,28 +35,39 @@ impl eframe::App for Motorsim {
                 ui.group(|ui|{
                     ui.label("Control type :");
                     ui.horizontal(|ui| {
-                        ui.selectable_value(self.config.get_controller_conf().get_control_option(), ControlType::Pos, "Pos");
-                        ui.selectable_value(self.config.get_controller_conf().get_control_option(), ControlType::PosVelTrq, "PosVelTrq");
+                        ui.selectable_value(self.config.set_controller_conf().set_control_option(), ControlType::Pos, "Pos");
+                        ui.selectable_value(self.config.set_controller_conf().set_control_option(), ControlType::PosVelTrq, "PosVelTrq");
                     });
                 });
             });
 
             if Motorsim::pid_ui(&mut self.config, ["Angle controller", "Speed controller", "Torque controller"] , ui){
-                self.startstate.store(true, Ordering::Relaxed);
+                *(self.config.set_controller_conf().set_start_flag()) = true;
                 self.transmitter.send(self.config).unwrap();
             }
 
-            Motorsim::motor_params_ui(self.config.get_motor_conf(), ui);
+            Motorsim::motor_params_ui(self.config.set_motor_conf(), ui);
 
-            Motorsim::bounds_ui(self.config.get_controller_conf(), ui);
+            Motorsim::bounds_ui(self.config.set_controller_conf(), ui);
               
-            ui.add(egui::Slider::new(self.config.get_controller_conf().get_target(), 0.0..=360.0).text("Pos target"));
+            ui.add(egui::Slider::new(&mut *(self.target.lock().unwrap()), 0.0..=360.0).text("Pos target"));
 
-            if ui.add(egui::Button::new("Start")).clicked() {
-                *(self.config.get_controller_conf().get_calib_option()) = None;
-                self.startstate.store(true, Ordering::Relaxed);
-                self.transmitter.send(self.config).unwrap();
-            }
+            ui.vertical_centered(|ui|{
+                ui.group(|ui|{
+                    ui.horizontal(|ui| {
+                        if ui.add(egui::Button::new("Start")).clicked() {
+                            *(self.config.set_controller_conf().set_calib_option()) = None;
+                            *(self.config.set_controller_conf().set_start_flag()) = true;
+                            self.transmitter.send(self.config).unwrap();
+                        }
+            
+                        if ui.add(egui::Button::new("Stop")).clicked() {
+                            *(self.config.set_controller_conf().set_start_flag()) = false;
+                            self.transmitter.send(self.config).unwrap();
+                        }
+                    });
+                });
+            });
 
         });
 
@@ -68,7 +76,8 @@ impl eframe::App for Motorsim {
     }
 
     fn on_close_event(&mut self) -> bool {
-        self.endstate.store(true, Ordering::Relaxed);
+        *(self.config.set_controller_conf().set_end_flag()) = true;
+        self.transmitter.send(self.config).unwrap();
         true
     }
 }
@@ -79,9 +88,8 @@ impl Motorsim {
         tx.send(config).unwrap();
         Self {
             config: config,
+            target: Arc::new(Mutex::new(180.0)),
             plotpoints: Arc::new(Mutex::new(PlotPnts::default())),
-            endstate: Arc::new(AtomicBool::new(false)),
-            startstate: Arc::new(AtomicBool::new(false)),
             transmitter: tx
         }
     }
@@ -98,45 +106,44 @@ impl Motorsim {
             options,
             Box::new(|_cc| Box::new(motorsim)),
         ).unwrap()
-
     }
 
     fn plot(points: &mut PlotPnts, config: &Config, ui: &mut Ui) {
-        match config.get_controller_conf_imut().get_calib_option_imut(){
+        match config.get_controller_conf().get_calib_option(){
             Some(pid_type) =>{
-                for pid in config.get_pid_conf_imut(){
+                for pid in config.get_pid_conf(){
                     if pid.get_option() == *pid_type{
                         match pid.get_option(){
                             TypePid::Pos =>{
-                                let line = Line::new(PlotPoints::from(points.get_pos()));
-                                let target_line = Line::new(PlotPoints::from(vec![[0.0, 180.0],[config.get_controller_conf_imut().get_duration(), 180.0]]));
+                                let line = Line::new(PlotPoints::from(points.clone_pos()));
+                                let target_line = Line::new(PlotPoints::from(vec![[0.0, 180.0],[config.get_controller_conf().get_duration(), 180.0]]));
                                 Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
                             },
                             TypePid::Vel =>{
-                                let line = Line::new(PlotPoints::from(points.get_vel()));
-                                let value = config.get_controller_conf_imut().get_vel_bound_imut()/2.0;
-                                let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf_imut().get_duration(), value]]));
+                                let line = Line::new(PlotPoints::from(points.clone_vel()));
+                                let value = config.get_controller_conf().get_vel_bound()/2.0;
+                                let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
                                 Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
                             },
                             TypePid::Trq =>{
-                                let line = Line::new(PlotPoints::from(points.get_trq()));
-                                let value = config.get_controller_conf_imut().get_trq_bound_imut()/2.0;
-                                let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf_imut().get_duration(), value]]));
+                                let line = Line::new(PlotPoints::from(points.clone_trq()));
+                                let value = config.get_controller_conf().get_trq_bound()/2.0;
+                                let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
                                 Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
                             }
                         }
                     } else{
                         match pid.get_option(){
                             TypePid::Pos =>{
-                                let line = Line::new(PlotPoints::from(points.get_pos()));
+                                let line = Line::new(PlotPoints::from(points.clone_pos()));
                                 Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
                             },
                             TypePid::Vel =>{
-                                let line = Line::new(PlotPoints::from(points.get_vel()));
+                                let line = Line::new(PlotPoints::from(points.clone_vel()));
                                 Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
                             },
                             TypePid::Trq =>{
-                                let line = Line::new(PlotPoints::from(points.get_trq()));
+                                let line = Line::new(PlotPoints::from(points.clone_trq()));
                                 Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
                             }
                         }
@@ -144,22 +151,22 @@ impl Motorsim {
                 }
             }
             None =>{
-                let line = Line::new(PlotPoints::from(points.get_pos()));
+                let line = Line::new(PlotPoints::from(points.clone_pos()));
                 Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
-                let line = Line::new(PlotPoints::from(points.get_vel()));
+                let line = Line::new(PlotPoints::from(points.clone_vel()));
                 Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
-                let line = Line::new(PlotPoints::from(points.get_trq()));
+                let line = Line::new(PlotPoints::from(points.clone_trq()));
                 Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
             }
         }
-        let line = Line::new(PlotPoints::from(points.get_voltage()));
+        let line = Line::new(PlotPoints::from(points.clone_voltage()));
         Plot::new("Voltage").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
     }
 
     fn pid_ui(config: &mut Config, label:[&str;3],  ui: &mut Ui) -> bool{
         let mut send_flag = false;
         let mut calib_option = None;
-        for pid in config.get_pid_conf() {
+        for pid in config.set_pid_conf() {
             ui.vertical_centered(|ui|{
                 ui.label(label[0]);
             });
@@ -167,11 +174,11 @@ impl Motorsim {
             ui.group(|ui|{
             ui.horizontal(|ui| {
                 ui.label("Kp :");
-                ui.add(egui::DragValue::new(pid.get_kp()).speed(0.05));
+                ui.add(egui::DragValue::new(pid.set_kp()).speed(0.05));
                 ui.label("Kd :");
-                ui.add(egui::DragValue::new(pid.get_kd()).speed(0.05));
+                ui.add(egui::DragValue::new(pid.set_kd()).speed(0.05));
                 ui.label("Ki :");
-                ui.add(egui::DragValue::new(pid.get_ki()).speed(0.05));
+                ui.add(egui::DragValue::new(pid.set_ki()).speed(0.05));
 
                 if ui.add(egui::Button::new("Calibrate")).clicked() {
                     calib_option = Some(pid.get_option());
@@ -181,7 +188,7 @@ impl Motorsim {
         });
         }
         if send_flag{
-            *(config.get_controller_conf().get_calib_option()) = calib_option;
+            *(config.set_controller_conf().set_calib_option()) = calib_option;
         }
     send_flag
     }
@@ -192,15 +199,15 @@ impl Motorsim {
             ui.group(|ui|{
                 ui.horizontal(|ui| {
                     ui.label("j :");
-                    ui.add(egui::DragValue::new(motor_conf.get_j()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(motor_conf.set_j()).speed(0.05).max_decimals(6));
                     ui.label("b :");
-                    ui.add(egui::DragValue::new(motor_conf.get_b()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(motor_conf.set_b()).speed(0.05).max_decimals(6));
                     ui.label("k :");
-                    ui.add(egui::DragValue::new(motor_conf.get_k()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(motor_conf.set_k()).speed(0.05).max_decimals(6));
                     ui.label("r :");
-                    ui.add(egui::DragValue::new(motor_conf.get_r()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(motor_conf.set_r()).speed(0.05).max_decimals(6));
                     ui.label("l :");
-                    ui.add(egui::DragValue::new(motor_conf.get_l()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(motor_conf.set_l()).speed(0.05).max_decimals(6));
                 });
             });
         });
@@ -212,11 +219,11 @@ impl Motorsim {
             ui.group(|ui|{
                 ui.horizontal(|ui| {
                     ui.label("Vltg bound :");
-                    ui.add(egui::DragValue::new(controller_conf.get_vltg_bound()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(controller_conf.set_vltg_bound()).speed(0.05).max_decimals(6));
                     ui.label("Vel bound :");
-                    ui.add(egui::DragValue::new(controller_conf.get_vel_bound()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(controller_conf.set_vel_bound()).speed(0.05).max_decimals(6));
                     ui.label("Trq bound :");
-                    ui.add(egui::DragValue::new(controller_conf.get_trq_bound()).speed(0.05).max_decimals(6));
+                    ui.add(egui::DragValue::new(controller_conf.set_trq_bound()).speed(0.05).max_decimals(6));
                 });
             });  
         });
@@ -226,12 +233,8 @@ impl Motorsim {
         Arc::clone(&self.plotpoints)
     }
 
-    pub fn get_endstate(&self) -> Arc<AtomicBool>{
-        Arc::clone(&self.endstate)
-    }
-
-    pub fn get_startstate(&self) -> Arc<AtomicBool>{
-        Arc::clone(&self.startstate)
+    pub fn get_target(&self) -> Arc<Mutex<f64>>{
+        Arc::clone(&self.target)
     }
 
 }

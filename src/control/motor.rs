@@ -30,23 +30,23 @@ impl Default for ConfigMotor{
 }
 
 impl ConfigMotor{
-    pub fn get_j(&mut self) ->&mut f64{
+    pub fn set_j(&mut self) ->&mut f64{
         &mut self.j
     }
 
-    pub fn get_b(&mut self) ->&mut f64{
+    pub fn set_b(&mut self) ->&mut f64{
         &mut self.b
     }
 
-    pub fn get_k(&mut self) ->&mut f64{
+    pub fn set_k(&mut self) ->&mut f64{
         &mut self.k
     }
 
-    pub fn get_r(&mut self) ->&mut f64{
+    pub fn set_r(&mut self) ->&mut f64{
         &mut self.r
     }
 
-    pub fn get_l(&mut self) ->&mut f64{
+    pub fn set_l(&mut self) ->&mut f64{
         &mut self.l
     }
 }
