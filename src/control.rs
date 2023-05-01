@@ -2,7 +2,7 @@ pub mod motor;
 mod math;
 mod time_mod;
 
-use std::{sync::{Mutex, Arc}, thread, time::Duration};
+use std::{sync::{Mutex, Arc}, collections::VecDeque};
 
 pub use crate::control::motor::Motor;
 use self::{time_mod::Time, math::{Integrator, Derivative}, motor::ConfigMotor};
@@ -56,10 +56,10 @@ pub struct Config{
 }
 
 pub struct PlotPnts{
-    pos: Vec<[f64; 2]>,
-    vel: Vec<[f64; 2]>,
-    voltage: Vec<[f64; 2]>,
-    trq: Vec<[f64; 2]>,
+    pos: VecDeque<[f64; 2]>,
+    vel: VecDeque<[f64; 2]>,
+    voltage: VecDeque<[f64; 2]>,
+    trq: VecDeque<[f64; 2]>,
 }
 
 
@@ -92,7 +92,7 @@ impl Default for Config{
 
 impl Default for PlotPnts{
     fn default() -> Self {
-        Self{pos: vec![], vel: vec![], trq: vec![], voltage: vec![] }
+        Self{pos: vec![].into(), vel: vec![].into(), trq: vec![].into(), voltage: vec![].into() }
     }
 }
 
@@ -103,26 +103,26 @@ impl Iterator for ConfigPid{
 }
 
 impl PlotPnts{
-    pub fn clone_pos(&self) -> Vec<[f64; 2]>{
-        self.pos.clone()
+    pub fn clone_pos_as_vec(&self) -> Vec<[f64; 2]>{
+        self.pos.clone().into()
     }
 
-    pub fn clone_vel(&self) -> Vec<[f64; 2]>{
-        self.vel.clone()
+    pub fn clone_vel_as_vec(&self) -> Vec<[f64; 2]>{
+        self.vel.clone().into()
+        }
+
+    pub fn clone_trq_as_vec(&self) -> Vec<[f64; 2]>{
+        self.trq.clone().into()    
     }
 
-    pub fn clone_trq(&self) -> Vec<[f64; 2]>{
-        self.trq.clone()
-    }
-
-    pub fn clone_voltage(&self) -> Vec<[f64; 2]>{
-        self.voltage.clone()
+    pub fn clone_voltage_as_vec(&self) -> Vec<[f64; 2]>{
+        self.voltage.clone().into()
     }
     pub fn reset(&mut self){
-        self.pos = vec![];
-        self.vel = vec![];
-        self.trq = vec![];
-        self.voltage = vec![];
+        self.pos = vec![].into();
+        self.vel = vec![].into();
+        self.trq = vec![].into();
+        self.voltage = vec![].into();
     }
 }
 
@@ -323,26 +323,6 @@ impl Controller{
 
     }
 
-    pub fn calculate_points(&mut self){
-        self.time.update_state(); 
-        self.time.update_state(); 
-        let mut time_from_start = self.time.get_time_from_start();
-        
-        while Controller::check_point_add(self.config.calib_option, self.config.duration, time_from_start){
-            self.time.update_state();
-            time_from_start = self.time.get_time_from_start();
-            let delta = self.time.get_delta();
-            let input = self.generate_control(delta);
-            self.motor.update_state(delta, input);
-            let mut points = self.plotpoints.lock().unwrap();
-            points.pos.push([time_from_start, self.motor.get_position()]);
-            points.vel.push([time_from_start, self.motor.get_velocity()]);
-            points.voltage.push([time_from_start, input]);
-            points.trq.push([time_from_start, self.motor.get_torque()]);
-            thread::sleep(Duration::from_millis(1));
-        }
-    }
-
     pub fn calculate_point(&mut self){
         self.time.update_state();
         let time_from_start = self.time.get_time_from_start();
@@ -352,10 +332,18 @@ impl Controller{
             let input = self.generate_control(delta);
             self.motor.update_state(delta, input);
             let mut points = self.plotpoints.lock().unwrap();
-            points.pos.push([time_from_start, self.motor.get_position()]);
-            points.vel.push([time_from_start, self.motor.get_velocity()]);
-            points.voltage.push([time_from_start, input]);
-            points.trq.push([time_from_start, self.motor.get_torque()]);
+
+            if time_from_start >= 3.*self.config.duration{
+                points.pos.pop_front();
+                points.vel.pop_front();
+                points.trq.pop_front();
+                points.voltage.pop_front();
+            }
+
+            points.pos.push_back([time_from_start, self.motor.get_position()]);
+            points.vel.push_back([time_from_start, self.motor.get_velocity()]);
+            points.voltage.push_back([time_from_start, input]);
+            points.trq.push_back([time_from_start, self.motor.get_torque()]);
         }
     }
 

@@ -115,18 +115,18 @@ impl Motorsim {
                     if pid.get_option() == *pid_type{
                         match pid.get_option(){
                             TypePid::Pos =>{
-                                let line = Line::new(PlotPoints::from(points.clone_pos()));
+                                let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
                                 let target_line = Line::new(PlotPoints::from(vec![[0.0, 180.0],[config.get_controller_conf().get_duration(), 180.0]]));
                                 Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
                             },
                             TypePid::Vel =>{
-                                let line = Line::new(PlotPoints::from(points.clone_vel()));
+                                let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
                                 let value = config.get_controller_conf().get_vel_bound()/2.0;
                                 let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
                                 Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
                             },
                             TypePid::Trq =>{
-                                let line = Line::new(PlotPoints::from(points.clone_trq()));
+                                let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
                                 let value = config.get_controller_conf().get_trq_bound()/2.0;
                                 let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
                                 Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
@@ -135,15 +135,15 @@ impl Motorsim {
                     } else{
                         match pid.get_option(){
                             TypePid::Pos =>{
-                                let line = Line::new(PlotPoints::from(points.clone_pos()));
+                                let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
                                 Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
                             },
                             TypePid::Vel =>{
-                                let line = Line::new(PlotPoints::from(points.clone_vel()));
+                                let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
                                 Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
                             },
                             TypePid::Trq =>{
-                                let line = Line::new(PlotPoints::from(points.clone_trq()));
+                                let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
                                 Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
                             }
                         }
@@ -151,15 +151,15 @@ impl Motorsim {
                 }
             }
             None =>{
-                let line = Line::new(PlotPoints::from(points.clone_pos()));
+                let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
                 Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
-                let line = Line::new(PlotPoints::from(points.clone_vel()));
+                let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
                 Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
-                let line = Line::new(PlotPoints::from(points.clone_trq()));
+                let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
                 Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
             }
         }
-        let line = Line::new(PlotPoints::from(points.clone_voltage()));
+        let line = Line::new(PlotPoints::from(points.clone_voltage_as_vec()));
         Plot::new("Voltage").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
     }
 
