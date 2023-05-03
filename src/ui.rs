@@ -152,11 +152,11 @@ impl Motorsim {
             }
             None =>{
                 let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
-                Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
+                Plot::new("Angle").view_aspect(3.0).width(600.0).include_y(0.0).show(ui, |plot_ui| plot_ui.line(line));
                 let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
-                Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
+                Plot::new("Speed").view_aspect(3.0).width(600.0).include_y(0.0).show(ui, |plot_ui| plot_ui.line(line));
                 let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
-                Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
+                Plot::new("Torque").view_aspect(3.0).width(600.0).include_y(0.0).show(ui, |plot_ui| plot_ui.line(line));
             }
         }
         let line = Line::new(PlotPoints::from(points.clone_voltage_as_vec()));
