@@ -24,10 +24,11 @@ impl eframe::App for Motorsim {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame){
 
         egui::CentralPanel::default().show(&ctx, |ui| {
-            ui.columns(2, |uis| {
+            let width = ui.available_width();
+            ui.columns(4, |uis| { //4 colums hack to make custom layout
                 {
                 let left = &mut uis[0];
-                left.vertical_centered(|left|{
+                left.vertical(|left|{
                     left.group(|left|{
                         left.label("Control type :");
                         left.horizontal(|left| {
@@ -56,11 +57,15 @@ impl eframe::App for Motorsim {
                                 *(self.config.set_controller_conf().set_start_flag()) = false;
                                 self.transmitter.send(self.config).unwrap();
                             }
+
+                            left.label("Duration, sec :");
+                            left.add(egui::DragValue::new(self.config.set_controller_conf().set_duration()).speed(0.05));
                         });
                     });
                 });
                 }
                 let right = &mut uis[1];
+                right.set_width(width*3./4.);
                 right.group(|right|{
                     right.vertical(|right| {
                         right.label("Plots");
@@ -70,9 +75,6 @@ impl eframe::App for Motorsim {
                 });
 
             });
-
-
-
         });
         
         ctx.request_repaint();
@@ -162,11 +164,11 @@ impl Motorsim {
     fn pid_ui(config: &mut Config, label:[&str;3],  ui: &mut Ui) -> bool{
         let mut send_flag = false;
         let mut calib_option = None;
-        for pid in config.set_pid_conf() {
-            ui.vertical_centered(|ui|{
-                ui.label(label[0]);
+        let control_option = config.get_controller_conf().get_control_option().clone();
+        for (i, pid) in config.set_pid_conf().iter_mut().enumerate() {
+            ui.vertical(|ui|{
+                ui.label(label[i]);
             });
-
             ui.group(|ui|{
             ui.horizontal(|ui| {
                 ui.label("Kp :");
@@ -176,6 +178,21 @@ impl Motorsim {
                 ui.label("Ki :");
                 ui.add(egui::DragValue::new(pid.set_ki()).speed(0.05));
 
+                match control_option{
+                    ControlType::Pos =>{
+                        match pid.get_option(){
+                            TypePid::Pos =>{ }
+                            TypePid::Vel =>{
+                                ui.set_enabled(false);
+                            }
+                            TypePid::Trq =>{
+                                ui.set_enabled(false);
+                            }
+
+                        }
+                    }
+                    ControlType::PosVelTrq =>{ }
+                }
                 if ui.add(egui::Button::new("Calibrate")).clicked() {
                     calib_option = Some(pid.get_option());
                     send_flag = true;
@@ -190,7 +207,7 @@ impl Motorsim {
     }
 
     fn motor_params_ui(motor_conf: &mut ConfigMotor, ui: &mut Ui){
-        ui.vertical_centered(|ui|{
+        ui.vertical(|ui|{
             ui.label("Motor parameters");
             ui.group(|ui|{
                 ui.horizontal(|ui| {
@@ -210,15 +227,15 @@ impl Motorsim {
     }
 
     fn bounds_ui(controller_conf: &mut ConfigController, ui: &mut Ui){
-        ui.vertical_centered(|ui|{
+        ui.vertical(|ui|{
             ui.label("Motor bounds");
             ui.group(|ui|{
                 ui.horizontal(|ui| {
-                    ui.label("Vltg bound :");
+                    ui.label("Vltg bound, V :");
                     ui.add(egui::DragValue::new(controller_conf.set_vltg_bound()).speed(0.05).max_decimals(6));
-                    ui.label("Vel bound :");
+                    ui.label("Vel bound, rpm :");
                     ui.add(egui::DragValue::new(controller_conf.set_vel_bound()).speed(0.05).max_decimals(6));
-                    ui.label("Trq bound :");
+                    ui.label("Trq bound, N*m :");
                     ui.add(egui::DragValue::new(controller_conf.set_trq_bound()).speed(0.05).max_decimals(6));
                 });
             });  

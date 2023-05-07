@@ -76,7 +76,7 @@ pub struct Controller{
 
 impl Default for ConfigController{
     fn default() -> Self {
-        Self{vltg_bound: 24., vel_bound: 4000.,trq_bound: 1., duration: 1.0, calib_option: None, control_option: ControlType::PosVelTrq, start_flag: false, end_flag: false }
+        Self{vltg_bound: 24., vel_bound: 4000.,trq_bound: 1., duration: 3.0, calib_option: None, control_option: ControlType::PosVelTrq, start_flag: false, end_flag: false }
     }
 }
 
@@ -188,6 +188,10 @@ impl ConfigController {
         self.duration
     }
 
+    pub fn set_duration(&mut self) -> &mut f64{
+        &mut self.duration
+    }
+
     pub fn set_calib_option(&mut self) -> &mut Option<TypePid>{
         &mut self.calib_option
     }
@@ -199,8 +203,12 @@ impl ConfigController {
     pub fn set_control_option(&mut self) -> &mut ControlType{
         &mut self.control_option
    }
-    
+
+   pub fn get_control_option(&self) -> &ControlType{
+    &self.control_option
+   }
 }
+    
 
 impl Pid {
     pub fn new(config: ConfigPid) -> Self{
@@ -333,7 +341,7 @@ impl Controller{
             self.motor.update_state(delta, input);
             let mut points = self.plotpoints.lock().unwrap();
 
-            if time_from_start >= 3.*self.config.duration{
+            if time_from_start >= self.config.duration{
                 points.pos.pop_front();
                 points.vel.pop_front();
                 points.trq.pop_front();
