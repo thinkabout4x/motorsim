@@ -2,6 +2,8 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc::Sender;
 
+use eframe::egui::plot::Legend;
+use eframe::egui::plot::PlotUi;
 use eframe::egui::{self,Ui};
 use egui::plot::{Line, Plot, PlotPoints};
 use crate::control::Config;
@@ -20,57 +22,59 @@ pub struct Motorsim{
 
 impl eframe::App for Motorsim {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame){
-        egui::SidePanel::right("right").show(ctx, |ui|{
+
+        egui::CentralPanel::default().show(&ctx, |ui| {
+            ui.columns(2, |uis| {
+                {
+                let left = &mut uis[0];
+                left.vertical_centered(|left|{
+                    left.group(|left|{
+                        left.label("Control type :");
+                        left.horizontal(|left| {
+                            left.selectable_value(self.config.set_controller_conf().set_control_option(), ControlType::Pos, "Pos");
+                            left.selectable_value(self.config.set_controller_conf().set_control_option(), ControlType::PosVelTrq, "PosVelTrq");
+                        });
+                    });
+                    if Motorsim::pid_ui(&mut self.config, ["Angle controller", "Speed controller", "Torque controller"] , left){
+                        *(self.config.set_controller_conf().set_start_flag()) = true;
+                        self.transmitter.send(self.config).unwrap();
+                    }
+
+                    Motorsim::motor_params_ui(self.config.set_motor_conf(), left);
+                    Motorsim::bounds_ui(self.config.set_controller_conf(), left);
+                    left.add(egui::Slider::new(&mut *(self.target.lock().unwrap()), 0.0..=360.0).text("Pos target"));
+
+                    left.group(|left|{
+                        left.horizontal(|left| {
+                            if left.add(egui::Button::new("Start")).clicked() {
+                                *(self.config.set_controller_conf().set_calib_option()) = None;
+                                *(self.config.set_controller_conf().set_start_flag()) = true;
+                                self.transmitter.send(self.config).unwrap();
+                            }
             
-            ui.vertical_centered(|ui|{
-                ui.label("Plots");
-            });
-
-            let mut plotpoints = self.plotpoints.lock().unwrap();
-            Motorsim::plot(&mut plotpoints, &self.config, ui);
-        });
-
-        egui::SidePanel::left("left").show(ctx, |ui|{
-            ui.vertical_centered(|ui|{
-                ui.group(|ui|{
-                    ui.label("Control type :");
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(self.config.set_controller_conf().set_control_option(), ControlType::Pos, "Pos");
-                        ui.selectable_value(self.config.set_controller_conf().set_control_option(), ControlType::PosVelTrq, "PosVelTrq");
+                            if left.add(egui::Button::new("Stop")).clicked() {
+                                *(self.config.set_controller_conf().set_start_flag()) = false;
+                                self.transmitter.send(self.config).unwrap();
+                            }
+                        });
                     });
                 });
-            });
-
-            if Motorsim::pid_ui(&mut self.config, ["Angle controller", "Speed controller", "Torque controller"] , ui){
-                *(self.config.set_controller_conf().set_start_flag()) = true;
-                self.transmitter.send(self.config).unwrap();
-            }
-
-            Motorsim::motor_params_ui(self.config.set_motor_conf(), ui);
-
-            Motorsim::bounds_ui(self.config.set_controller_conf(), ui);
-              
-            ui.add(egui::Slider::new(&mut *(self.target.lock().unwrap()), 0.0..=360.0).text("Pos target"));
-
-            ui.vertical_centered(|ui|{
-                ui.group(|ui|{
-                    ui.horizontal(|ui| {
-                        if ui.add(egui::Button::new("Start")).clicked() {
-                            *(self.config.set_controller_conf().set_calib_option()) = None;
-                            *(self.config.set_controller_conf().set_start_flag()) = true;
-                            self.transmitter.send(self.config).unwrap();
-                        }
-            
-                        if ui.add(egui::Button::new("Stop")).clicked() {
-                            *(self.config.set_controller_conf().set_start_flag()) = false;
-                            self.transmitter.send(self.config).unwrap();
-                        }
+                }
+                let right = &mut uis[1];
+                right.group(|right|{
+                    right.vertical(|right| {
+                        right.label("Plots");
+                        let mut plotpoints = self.plotpoints.lock().unwrap();
+                        Motorsim::plot(&mut plotpoints, &self.config, right);
                     });
                 });
+
             });
 
-        });
 
+
+        });
+        
         ctx.request_repaint();
 
     }
@@ -101,6 +105,7 @@ impl Motorsim {
             initial_window_size: Some(egui::vec2(width as f32, height as f32)),
             ..Default::default()
         };
+
         eframe::run_native(
             "Motor control sim",
             options,
@@ -109,58 +114,49 @@ impl Motorsim {
     }
 
     fn plot(points: &mut PlotPnts, config: &Config, ui: &mut Ui) {
+        let height = ui.available_height()/4.;
+
+        let mut pos_target = Line::new(PlotPoints::from(vec![]));
+        let mut vel_target = Line::new(PlotPoints::from(vec![]));
+        let mut trq_target = Line::new(PlotPoints::from(vec![]));
+
+        let pos_plot = Plot::new("Angle").height(height).include_y(0.0).legend(Legend::default());
+        let vel_plot = Plot::new("Speed").height(height).include_y(0.0).legend(Legend::default());
+        let trq_plot = Plot::new("Torque").height(height).include_y(0.0).legend(Legend::default());
+        let voltage_plot = Plot::new("Voltage").height(height).include_y(0.0).legend(Legend::default());
+
+        let pos_line = Line::new(PlotPoints::from(points.clone_pos_as_vec())).name("Angle, deg");
+        let vel_line = Line::new(PlotPoints::from(points.clone_vel_as_vec())).name("Speed, rpm");
+        let trq_line = Line::new(PlotPoints::from(points.clone_trq_as_vec())).name("Torque, N*m");
+        let vltg_line = Line::new(PlotPoints::from(points.clone_voltage_as_vec())).name("Voltage, V");
+
         match config.get_controller_conf().get_calib_option(){
             Some(pid_type) =>{
+                
                 for pid in config.get_pid_conf(){
                     if pid.get_option() == *pid_type{
                         match pid.get_option(){
                             TypePid::Pos =>{
-                                let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
-                                let target_line = Line::new(PlotPoints::from(vec![[0.0, 180.0],[config.get_controller_conf().get_duration(), 180.0]]));
-                                Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
+                                pos_target = Line::new(PlotPoints::from(vec![[0.0, 180.0],[config.get_controller_conf().get_duration(), 180.0]]));
                             },
                             TypePid::Vel =>{
-                                let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
                                 let value = config.get_controller_conf().get_vel_bound()/2.0;
-                                let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
-                                Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
+                                vel_target = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
                             },
                             TypePid::Trq =>{
-                                let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
                                 let value = config.get_controller_conf().get_trq_bound()/2.0;
-                                let target_line = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
-                                Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| {plot_ui.line(line); plot_ui.line(target_line)});
-                            }
-                        }
-                    } else{
-                        match pid.get_option(){
-                            TypePid::Pos =>{
-                                let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
-                                Plot::new("Angle").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
-                            },
-                            TypePid::Vel =>{
-                                let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
-                                Plot::new("Speed").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
-                            },
-                            TypePid::Trq =>{
-                                let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
-                                Plot::new("Torque").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
+                                trq_target = Line::new(PlotPoints::from(vec![[0.0, value],[config.get_controller_conf().get_duration(), value]]));
                             }
                         }
                     }
                 }
             }
-            None =>{
-                let line = Line::new(PlotPoints::from(points.clone_pos_as_vec()));
-                Plot::new("Angle").view_aspect(3.0).width(600.0).include_y(0.0).show(ui, |plot_ui| plot_ui.line(line));
-                let line = Line::new(PlotPoints::from(points.clone_vel_as_vec()));
-                Plot::new("Speed").view_aspect(3.0).width(600.0).include_y(0.0).show(ui, |plot_ui| plot_ui.line(line));
-                let line = Line::new(PlotPoints::from(points.clone_trq_as_vec()));
-                Plot::new("Torque").view_aspect(3.0).width(600.0).include_y(0.0).show(ui, |plot_ui| plot_ui.line(line));
-            }
+            None => { }
         }
-        let line = Line::new(PlotPoints::from(points.clone_voltage_as_vec()));
-        Plot::new("Voltage").view_aspect(3.0).width(600.0).show(ui, |plot_ui| plot_ui.line(line));
+        pos_plot.show(ui, |plot_ui: &mut PlotUi| {plot_ui.line(pos_line); plot_ui.line(pos_target)});
+        vel_plot.show(ui, |plot_ui: &mut PlotUi| {plot_ui.line(vel_line); plot_ui.line(vel_target)});
+        trq_plot.show(ui, |plot_ui: &mut PlotUi| {plot_ui.line(trq_line); plot_ui.line(trq_target)});
+        voltage_plot.show(ui, |plot_ui: &mut PlotUi| {plot_ui.line(vltg_line);});
     }
 
     fn pid_ui(config: &mut Config, label:[&str;3],  ui: &mut Ui) -> bool{
