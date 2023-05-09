@@ -60,6 +60,10 @@ impl eframe::App for Motorsim {
 
                             left.label("Duration, sec :");
                             left.add(egui::DragValue::new(self.config.set_controller_conf().set_duration()).speed(0.05));
+
+                            left.label("Frequency, hz :");
+                            left.add(egui::DragValue::new(self.config.set_controller_conf().set_frequency()).speed(0.05));
+
                         });
                     });
                 });
@@ -71,14 +75,11 @@ impl eframe::App for Motorsim {
                         right.label("Plots");
                         let mut plotpoints = self.plotpoints.lock().unwrap();
                         Motorsim::plot(&mut plotpoints, &self.config, right);
+                        ctx.request_repaint();
                     });
                 });
-
             });
         });
-        
-        ctx.request_repaint();
-
     }
 
     fn on_close_event(&mut self) -> bool {
@@ -101,7 +102,7 @@ impl Motorsim {
     }
 
     pub fn run(motorsim: Motorsim,  width: i32, height: i32 ) {
-        tracing_subscriber::fmt::init();
+        //tracing_subscriber::fmt::init();
 
         let options = eframe::NativeOptions {
             initial_window_size: Some(egui::vec2(width as f32, height as f32)),

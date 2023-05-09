@@ -26,7 +26,8 @@ fn main() {
             if !controller.get_controller_conf().get_end_flag(){
                 if *(controller.get_controller_conf().get_start_flag()){
                     controller.calculate_point();
-                    thread::sleep(Duration::from_millis(1));
+                } else {
+                    thread::sleep(Duration::from_millis(100));
                 }
             } else {
                 break

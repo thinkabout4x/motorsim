@@ -4,20 +4,25 @@ pub struct Time{
     prev_state: Option<Duration>, 
     state: Duration,
     zero_time: Duration,
-    instant:Instant
+    instant:Instant,
+    time_period: f64
 
 }
 
 impl Time {
-    pub fn new() -> Self{
+    pub fn new(frquency: f64) -> Self{
         let instant = Instant::now();
         let zero_time = instant.elapsed();
         let state = zero_time;
-        Self {zero_time, prev_state: None, state, instant}
+        Self {zero_time, prev_state: None, state, instant, time_period: 1./frquency}
     }
 
     pub fn update_state(&mut self){
         self.prev_state = Some(self.state);
+        self.state = self.instant.elapsed();
+        while (self.state-self.prev_state.unwrap()).as_secs_f64() < self.time_period{
+            self.state = self.instant.elapsed();
+        }
         self.state = self.instant.elapsed();
     }
 

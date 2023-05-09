@@ -42,6 +42,7 @@ pub struct ConfigController{
     vel_bound: f64,
     trq_bound: f64,
     duration: f64,
+    frequency: f64,
     calib_option: Option<TypePid>,
     control_option: ControlType,
     start_flag: bool,
@@ -76,7 +77,7 @@ pub struct Controller{
 
 impl Default for ConfigController{
     fn default() -> Self {
-        Self{vltg_bound: 24., vel_bound: 4000.,trq_bound: 1., duration: 3.0, calib_option: None, control_option: ControlType::PosVelTrq, start_flag: false, end_flag: false }
+        Self{vltg_bound: 24., vel_bound: 4000.,trq_bound: 1., duration: 3.0, frequency: 1000., calib_option: None, control_option: ControlType::PosVelTrq, start_flag: false, end_flag: false }
     }
 }
 
@@ -192,6 +193,14 @@ impl ConfigController {
         &mut self.duration
     }
 
+    pub fn set_frequency(&mut self) -> &mut f64{
+        &mut self.frequency
+    }
+
+    pub fn get_frequency(&self) -> f64{
+        self.frequency
+    }
+
     pub fn set_calib_option(&mut self) -> &mut Option<TypePid>{
         &mut self.calib_option
     }
@@ -263,7 +272,7 @@ impl Config{
 
 impl Controller{
     pub fn new(config: Config, plotpoints: Arc<Mutex<PlotPnts>>, target: Arc<Mutex<f64>>) -> Self{
-        let time = Time::new();
+        let time = Time::new(config.get_controller_conf().get_frequency());
         Self {motor: Motor::new(config.motor), time, target,
              pos_pid: Pid::new(config.pid_conf[0]),
              vel_pid: Pid::new(config.pid_conf[1]),
@@ -277,7 +286,7 @@ impl Controller{
         self.vel_pid.reset(config.pid_conf[1]);
         self.trq_pid.reset(config.pid_conf[2]);
         self.plotpoints.lock().unwrap().reset();
-        self.time = Time::new();
+        self.time = Time::new(self.config.get_frequency());
     }
 
     pub fn generate_control(&mut self, delta: f64) -> f64{
@@ -335,7 +344,7 @@ impl Controller{
         self.time.update_state();
         let time_from_start = self.time.get_time_from_start();
         
-        if Controller::check_point_add(self.config.calib_option, self.config.duration, time_from_start){
+        if Controller::check_point_add(&mut self.config, time_from_start){
             let delta = self.time.get_delta();
             let input = self.generate_control(delta);
             self.motor.update_state(delta, input);
@@ -355,12 +364,13 @@ impl Controller{
         }
     }
 
-    fn check_point_add(calib_option: Option<TypePid>, duration: f64, time_from_start: f64) -> bool{
-        match calib_option {
+    fn check_point_add(config: &mut ConfigController, time_from_start: f64) -> bool{
+        match config.get_calib_option() {
             Some(_) =>{
-                if time_from_start <= duration{
+                if time_from_start <= config.get_duration(){
                     return true;
                 } else {
+                    *config.set_start_flag() = false;
                     return false;
                 }
             }
